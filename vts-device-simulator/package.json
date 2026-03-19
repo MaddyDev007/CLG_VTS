@@ -1,0 +1,19 @@
+{
+  "name": "vts-device-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "simulator.js",
+  "scripts": {
+    "start": "node src/bridge.js",
+    "random": "node src/index.js",
+    "bridge": "node src/bridge.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^5.1.0",
+    "mqtt": "^5.10.4",
+    "pg": "^8.11.5"
+  }
+}
