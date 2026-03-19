@@ -10,6 +10,7 @@ import { useAuthStore } from '@store/authStore'
 
 export function UsersPage() {
   const currentUserRole = useAuthStore((state) => state.role) ?? 'STUDENT'
+  const currentUser = useAuthStore((state) => state.user)
   const canCreateUsers = currentUserRole !== 'STUDENT'
   const [users, setUsers] = useState<UserRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -114,6 +115,11 @@ export function UsersPage() {
       ) : (
         <UsersTable
           users={filteredUsers}
+          currentUser={{
+            id: currentUser?.id ?? users.find((user) => user.email === currentUser?.email)?.id ?? null,
+            role: currentUserRole,
+            email: currentUser?.email ?? null,
+          }}
           onEdit={(user) =>
             setEditingUser({
               id: user.id,

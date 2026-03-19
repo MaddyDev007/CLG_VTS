@@ -50,6 +50,7 @@ export class UsersController {
 
   @ApiOperation({ summary: 'Update user status' })
   @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403, description: 'Forbidden when managing self or equal/higher role.' })
   @Patch(':userId/status')
   async updateStatus(
     @Param('userId') userId: string,
@@ -62,6 +63,7 @@ export class UsersController {
 
   @ApiOperation({ summary: 'Delete user' })
   @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403, description: 'Forbidden when managing self or equal/higher role.' })
   @Delete(':userId')
   async remove(@Param('userId') userId: string, @CurrentUser() user: AuthenticatedUser) {
     await this.usersService.remove(userId, user)

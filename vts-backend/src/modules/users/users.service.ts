@@ -14,6 +14,13 @@ import { collegeHasRelatedData } from '../colleges/college-lifecycle.util'
 
 @Injectable()
 export class UsersService {
+  private readonly roleLevel: Record<User['role'], number> = {
+    SUPER_ADMIN: 4,
+    COLLEGE_ADMIN: 3,
+    FLEET_MANAGER: 2,
+    STUDENT: 1,
+  }
+
   constructor(
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
     @InjectRepository(College) private readonly collegesRepo: Repository<College>,
@@ -68,6 +75,16 @@ export class UsersService {
       throw new NotFoundException('User not found')
     }
     return user
+  }
+
+  private assertUserManagementAccess(targetUser: User, actor: AuthenticatedUser): void {
+    if (targetUser.id === actor.userId) {
+      throw new ForbiddenException('You cannot disable or delete your own account.')
+    }
+
+    if (this.roleLevel[targetUser.role] >= this.roleLevel[actor.role]) {
+      throw new ForbiddenException('You cannot manage users with equal or higher role.')
+    }
   }
 
   private async findOrCreateCollegeByName(name: string): Promise<College> {
@@ -164,7 +181,11 @@ export class UsersService {
   }
 
   async updateStatus(id: string, payload: UpdateUserStatusDto, actor: AuthenticatedUser): Promise<User> {
-    return this.update(id, { status: payload.status }, actor)
+    const user = await this.findById(id, actor)
+    this.assertUserManagementAccess(user, actor)
+
+    user.status = payload.status
+    return this.usersRepo.save(user)
   }
 
   async remove(id: string, actor: AuthenticatedUser): Promise<void> {
@@ -176,6 +197,8 @@ export class UsersService {
       if (!user) {
         throw new NotFoundException('User not found')
       }
+
+      this.assertUserManagementAccess(user, actor)
 
       const collegeId = user.collegeId ?? null
 

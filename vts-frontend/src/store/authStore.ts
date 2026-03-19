@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import { authService, type UserRole } from '@services/authService'
 
 type AuthStoreState = {
-  user: { name: string; email: string } | null
+  user: { id?: string; name: string; email: string } | null
   token: string | null
   role: UserRole | null
   isAuthenticated: boolean
@@ -32,7 +32,7 @@ export const useAuthStore = create<AuthStore>()(
         const session = await authService.login(email, password)
 
         set({
-          user: { name: session.name, email: session.email },
+          user: { id: session.id, name: session.name, email: session.email },
           token: session.token,
           role: session.role,
           isAuthenticated: true,
@@ -51,7 +51,7 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         set({
-          user: { name: session.name, email: session.email },
+          user: { id: session.id, name: session.name, email: session.email },
           token: session.token,
           role: session.role,
           isAuthenticated: true,

@@ -5,6 +5,7 @@ export type UserRole = 'SUPER_ADMIN' | 'COLLEGE_ADMIN' | 'FLEET_MANAGER' | 'STUD
 export type UserStatus = 'active' | 'disabled'
 
 export type AuthUser = {
+  id?: string
   email: string
   name: string
   role: UserRole
@@ -12,6 +13,7 @@ export type AuthUser = {
 }
 
 export type AuthSession = {
+  id?: string
   token: string
   role: UserRole
   name: string
@@ -52,6 +54,7 @@ function readSession(): AuthSession | null {
       typeof parsed.email === 'string'
     ) {
       return {
+        id: parsed.id,
         token: parsed.token,
         role: parsed.role as UserRole,
         name: parsed.name,
@@ -70,6 +73,7 @@ class AuthService implements IAuthService {
     const session = await apiClient.post<Partial<AuthSession>>('/auth/login', { email, password })
 
     const normalizedSession: AuthSession = {
+      id: session.id,
       token: session.token ?? '',
       role: (session.role ?? 'STUDENT') as UserRole,
       name: session.name ?? email,
