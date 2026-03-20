@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { minutesToMs } from '@utils/time'
+import { formatDateInputValue, minutesToMs, toEndOfLocalDayISOString, toStartOfLocalDayISOString } from '@utils/time'
 
 export type StopDateRange = 'today' | 'last_7_days' | 'last_30_days' | 'custom'
 
@@ -28,8 +28,8 @@ export function StopFilters({ vehicles, onChange, initialFilters }: StopFiltersP
   const [vehicleId, setVehicleId] = useState(initialFilters?.vehicleId ?? '')
   const [duration, setDuration] = useState(initialFilters?.minDuration ? String(initialFilters.minDuration) : '')
   const [dateRange, setDateRange] = useState<StopDateRange>(initialFilters?.dateRange ?? 'today')
-  const [startDate, setStartDate] = useState(initialFilters?.startDate ?? '')
-  const [endDate, setEndDate] = useState(initialFilters?.endDate ?? '')
+  const [startDate, setStartDate] = useState(formatDateInputValue(initialFilters?.startDate))
+  const [endDate, setEndDate] = useState(formatDateInputValue(initialFilters?.endDate))
 
   const resolvedFilters = useMemo<StopFilterPayload>(() => {
     const base = {
@@ -41,8 +41,8 @@ export function StopFilters({ vehicles, onChange, initialFilters }: StopFiltersP
     if (dateRange === 'custom') {
       return {
         ...base,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
+        startDate: toStartOfLocalDayISOString(startDate),
+        endDate: toEndOfLocalDayISOString(endDate),
       }
     }
 

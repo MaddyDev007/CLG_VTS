@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatDateInputValue, toEndOfLocalDayISOString, toStartOfLocalDayISOString } from '@utils/time'
 
 export type OverspeedDateRange = 'today' | 'last_7_days' | 'last_30_days' | 'custom'
 
@@ -22,8 +23,8 @@ export function OverspeedFilters({ vehicles, onChange, initialFilters }: Overspe
   const [vehicleId, setVehicleId] = useState(initialFilters?.vehicleId ?? '')
   const [speedLimit, setSpeedLimit] = useState(initialFilters?.speedLimit ? String(initialFilters.speedLimit) : '')
   const [dateRange, setDateRange] = useState<OverspeedDateRange>(initialFilters?.dateRange ?? 'today')
-  const [startDate, setStartDate] = useState(initialFilters?.startDate ?? '')
-  const [endDate, setEndDate] = useState(initialFilters?.endDate ?? '')
+  const [startDate, setStartDate] = useState(formatDateInputValue(initialFilters?.startDate))
+  const [endDate, setEndDate] = useState(formatDateInputValue(initialFilters?.endDate))
 
   const resolvedFilters = useMemo<OverspeedFilterPayload>(() => {
     const base = {
@@ -35,8 +36,8 @@ export function OverspeedFilters({ vehicles, onChange, initialFilters }: Overspe
     if (dateRange === 'custom') {
       return {
         ...base,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
+        startDate: toStartOfLocalDayISOString(startDate),
+        endDate: toEndOfLocalDayISOString(endDate),
       }
     }
 

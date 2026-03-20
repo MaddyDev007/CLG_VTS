@@ -60,3 +60,45 @@ export function msToHours(ms: number): number {
   const safeMs = Number.isFinite(ms) ? ms : 0
   return safeMs / ONE_HOUR_MS
 }
+
+export function formatDateInputValue(value?: string): string {
+  if (!value) {
+    return ''
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function toStartOfLocalDayISOString(value?: string): string | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) {
+    return undefined
+  }
+
+  return date.toISOString()
+}
+
+export function toEndOfLocalDayISOString(value?: string): string | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  const date = new Date(`${value}T23:59:59.999`)
+  if (Number.isNaN(date.getTime())) {
+    return undefined
+  }
+
+  return date.toISOString()
+}

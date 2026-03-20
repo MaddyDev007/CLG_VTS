@@ -96,7 +96,7 @@ export class StopEventsService {
 
     if (filters.vehicleId) {
       params.push(filters.vehicleId)
-      whereClauses.push(`d."vehicleId" = $${params.length}`)
+      whereClauses.push(`t."vehicleId" = $${params.length}`)
     }
 
     const outerClauses: string[] = []

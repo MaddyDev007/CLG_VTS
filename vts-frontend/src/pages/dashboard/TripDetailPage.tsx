@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { FiClock, FiMapPin, FiNavigation, FiTruck } from 'react-icons/fi'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { PlaybackControls } from '@components/trips/PlaybackControls'
 import { TripPlaybackMap } from '@components/trips/TripPlaybackMap'
@@ -143,7 +144,7 @@ export function TripDetailPage() {
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-5'>
-      <div className='rounded-2xl border border-white/30 bg-white/55 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
+        <div className='rounded-2xl border border-white/30 bg-white/55 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
         <div className='flex items-center justify-between gap-3'>
           <h2 className='text-lg font-semibold text-slate-900 dark:text-slate-100'>Trip Detail</h2>
           <Link
@@ -161,36 +162,77 @@ export function TripDetailPage() {
         </div>
       ) : trip ? (
         <>
-          <section className='rounded-2xl border border-white/30 bg-white/55 p-5 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
-            <div className='grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-5'>
-              <p className='lg:col-span-1'>
-                <span className='font-semibold text-slate-900 dark:text-slate-100'>Vehicle:</span>{' '}
-                <span className='text-slate-700 dark:text-slate-200'>{trip.vehicleName}</span>
-              </p>
-              <p className='lg:col-span-2'>
-                <span className='font-semibold text-slate-900 dark:text-slate-100'>Start:</span>{' '}
-                <span className='text-slate-700 dark:text-slate-200'>{trip.startLocation}</span>
-              </p>
-              <p className='lg:col-span-2'>
-                <span className='font-semibold text-slate-900 dark:text-slate-100'>End:</span>{' '}
-                <span className='text-slate-700 dark:text-slate-200'>{trip.endLocation}</span>
-              </p>
-              <p>
-                <span className='font-semibold text-slate-900 dark:text-slate-100'>Duration:</span>{' '}
-                <span className='text-slate-700 dark:text-slate-200'>{formatDurationDetail(trip.duration)}</span>
-              </p>
-              <p>
-                <span className='font-semibold text-slate-900 dark:text-slate-100'>Distance:</span>{' '}
-                <span className='text-slate-700 dark:text-slate-200'>{formatDistance(trip.distance)}</span>
-              </p>
-              <p className='sm:col-span-2'>
-                <span className='font-semibold text-slate-900 dark:text-slate-100'>Start Time:</span>{' '}
-                <span className='text-slate-700 dark:text-slate-200'>{new Date(trip.startTime).toLocaleString()}</span>
-              </p>
-              <p className='sm:col-span-2'>
-                <span className='font-semibold text-slate-900 dark:text-slate-100'>End Time:</span>{' '}
-                <span className='text-slate-700 dark:text-slate-200'>{new Date(trip.endTime).toLocaleString()}</span>
-              </p>
+          <section className='overflow-hidden rounded-[28px] border border-white/30 bg-white/70 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/80 dark:shadow-black/20'>
+            <div className='border-b border-slate-200/70 bg-gradient-to-r from-sky-50 via-white to-cyan-50 px-5 py-5 dark:border-slate-700/70 dark:from-slate-900/80 dark:via-[#1e293b]/90 dark:to-sky-950/40'>
+              <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+                <div className='space-y-3'>
+                  <div className='inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/85 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-sky-700 dark:border-sky-500/30 dark:bg-slate-900/70 dark:text-sky-200'>
+                    <FiTruck size={14} />
+                    Trip Overview
+                  </div>
+                  <div>
+                    <p className='text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400'>Assigned Vehicle</p>
+                    <h3 className='mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100'>{trip.vehicleName}</h3>
+                  </div>
+                </div>
+
+                <div className='grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[30rem]'>
+                  <div className='rounded-2xl border border-slate-200/80 bg-white/85 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/65'>
+                    <p className='text-xs uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400'>Duration</p>
+                    <p className='mt-1 text-base font-semibold text-slate-900 dark:text-slate-100'>{formatDurationDetail(trip.duration)}</p>
+                  </div>
+                  <div className='rounded-2xl border border-slate-200/80 bg-white/85 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/65'>
+                    <p className='text-xs uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400'>Distance</p>
+                    <p className='mt-1 text-base font-semibold text-slate-900 dark:text-slate-100'>{formatDistance(trip.distance)}</p>
+                  </div>
+                  <div className='rounded-2xl border border-slate-200/80 bg-white/85 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/65'>
+                    <p className='text-xs uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400'>Start</p>
+                    <p className='mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100'>{new Date(trip.startTime).toLocaleTimeString()}</p>
+                  </div>
+                  <div className='rounded-2xl border border-slate-200/80 bg-white/85 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/65'>
+                    <p className='text-xs uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400'>End</p>
+                    <p className='mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100'>{new Date(trip.endTime).toLocaleTimeString()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 px-5 py-5 lg:grid-cols-[1fr_auto_1fr] lg:items-stretch'>
+              <article className='rounded-3xl border border-emerald-200/70 bg-emerald-50/80 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10'>
+                <div className='flex items-center gap-2 text-emerald-700 dark:text-emerald-300'>
+                  <FiMapPin size={16} />
+                  <p className='text-xs font-semibold uppercase tracking-[0.16em]'>Start Point</p>
+                </div>
+                <p className='mt-3 text-sm leading-7 text-slate-700 dark:text-slate-200'>{trip.startLocation}</p>
+                <div className='mt-4 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400'>
+                  <FiClock size={14} />
+                  <span>{new Date(trip.startTime).toLocaleString()}</span>
+                </div>
+              </article>
+
+              <div className='hidden items-center justify-center lg:flex'>
+                <div className='flex h-full min-h-[8rem] items-center'>
+                  <div className='flex h-full flex-col items-center justify-center gap-2'>
+                    <span className='h-3 w-3 rounded-full bg-emerald-500 shadow-[0_0_0_6px_rgba(16,185,129,0.14)] dark:shadow-[0_0_0_6px_rgba(16,185,129,0.22)]' />
+                    <div className='h-20 w-px bg-gradient-to-b from-emerald-400 via-sky-400 to-rose-400 dark:from-emerald-400 dark:via-sky-400 dark:to-rose-400' />
+                    <FiNavigation size={18} className='text-sky-500 dark:text-sky-300' />
+                    <div className='h-20 w-px bg-gradient-to-b from-sky-400 via-rose-300 to-rose-400 dark:from-sky-400 dark:via-rose-400/70 dark:to-rose-400' />
+                    <span className='h-3 w-3 rounded-full bg-rose-500 shadow-[0_0_0_6px_rgba(244,63,94,0.14)] dark:shadow-[0_0_0_6px_rgba(244,63,94,0.22)]' />
+                  </div>
+                </div>
+              </div>
+
+              <article className='rounded-3xl border border-rose-200/70 bg-rose-50/80 p-4 dark:border-rose-500/20 dark:bg-rose-500/10'>
+                <div className='flex items-center gap-2 text-rose-700 dark:text-rose-300'>
+                  <FiNavigation size={16} />
+                  <p className='text-xs font-semibold uppercase tracking-[0.16em]'>Destination</p>
+                </div>
+                <p className='mt-3 text-sm leading-7 text-slate-700 dark:text-slate-200'>{trip.endLocation}</p>
+                <div className='mt-4 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400'>
+                  <FiClock size={14} />
+                  <span>{new Date(trip.endTime).toLocaleString()}</span>
+                </div>
+              </article>
             </div>
           </section>
 
