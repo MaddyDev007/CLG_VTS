@@ -4,9 +4,17 @@ import { AddUserModal, type CreateUserPayload } from '@components/users/AddUserM
 import { EditUserModal, type EditableUser } from '@components/users/EditUserModal'
 import { DeleteUserDialog } from '@components/users/DeleteUserDialog'
 import { UsersTable } from '@components/users/UsersTable'
+import type { UserRole } from '@services/authService'
 import { userService, type UserRecord } from '@services/userService'
 import { collegeService, type CollegeOption } from '@services/collegeService'
 import { useAuthStore } from '@store/authStore'
+
+const roleLevel: Record<UserRole, number> = {
+  SUPER_ADMIN: 4,
+  COLLEGE_ADMIN: 3,
+  FLEET_MANAGER: 2,
+  STUDENT: 1,
+}
 
 export function UsersPage() {
   const currentUserRole = useAuthStore((state) => state.role) ?? 'STUDENT'
@@ -50,17 +58,33 @@ export function UsersPage() {
   }, [])
 
   const filteredUsers = useMemo(() => {
+    const visibleUsers = users.filter((user) => {
+      if (roleLevel[user.role] >= roleLevel[currentUserRole]) {
+        return false
+      }
+
+      if (currentUser?.id) {
+        return user.id !== currentUser.id
+      }
+
+      if (currentUser?.email) {
+        return user.email !== currentUser.email
+      }
+
+      return true
+    })
+
     const query = search.trim().toLowerCase()
     if (!query) {
-      return users
+      return visibleUsers
     }
-    return users.filter(
+    return visibleUsers.filter(
       (user) =>
         user.name.toLowerCase().includes(query) ||
         user.email.toLowerCase().includes(query) ||
         user.role.toLowerCase().includes(query),
     )
-  }, [search, users])
+  }, [currentUser?.email, currentUser?.id, currentUserRole, search, users])
 
   const handleCreate = async (payload: CreateUserPayload) => {
     await userService.createUser(payload)

@@ -165,7 +165,7 @@ export function AddUserModal({
 
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4'>
-      <div className='w-full max-w-lg rounded-2xl border border-white/30 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-[#1e293b]'>
+      <div className='w-full max-h-full overflow-y-scroll max-w-lg rounded-2xl border border-white/30 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-[#1e293b]'>
         <form autoComplete='off' onSubmit={(event) => event.preventDefault()}>
           <input type='text' name='prevent-autofill-email' autoComplete='username' className='hidden' tabIndex={-1} />
           <input type='password' name='prevent-autofill-password' autoComplete='current-password' className='hidden' tabIndex={-1} />

@@ -83,13 +83,13 @@ export function VehicleDetailPage() {
               {vehicle?.vehicleName ?? 'Vehicle'}
             </h2>
           </div>
-          <div className='flex items-center gap-2'>
-            <p className='rounded-lg bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-slate-900 dark:text-[#38bdf8]'>
+          <div className='flex items-center gap-2 md:w-max'>
+            {/* <p className='rounded-lg bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-slate-900 dark:text-[#38bdf8]'>
               ID: {vehicleId || 'N/A'}
             </p>
             <p className='rounded-lg border border-slate-200 bg-white/70 px-3 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200'>
               Route: {routeName}
-            </p>
+            </p> */}
             {canEditVehicle ? (
               <button
                 type='button'
@@ -104,7 +104,7 @@ export function VehicleDetailPage() {
               <button
                 type='button'
                 onClick={() => setIsDeleteOpen(true)}
-                className='inline-flex items-center gap-2 rounded-lg border border-rose-300 px-3 py-1.5 text-sm font-medium text-rose-700 transition hover:border-rose-500 hover:text-rose-600 dark:border-rose-500/60 dark:text-rose-300 dark:hover:border-rose-400 dark:hover:text-rose-200'
+                className='inline-flex mr-5 items-center gap-2 rounded-lg border border-rose-300 px-3 py-1.5 text-sm font-medium text-rose-700 transition hover:border-rose-500 hover:text-rose-600 dark:border-rose-500/60 dark:text-rose-300 dark:hover:border-rose-400 dark:hover:text-rose-200'
               >
                 <FiTrash2 size={14} />
                 Delete
@@ -112,7 +112,7 @@ export function VehicleDetailPage() {
             ) : null}
             <Link
               to='/vehicles'
-              className='rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
+              className='rounded-lg border  border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
             >
               Back to Vehicles
             </Link>

@@ -56,7 +56,7 @@ export function VehicleListPanel({ vehicles, selectedVehicleId, onVehicleSelect 
   }
 
   return (
-    <section className='flex h-full min-h-[420px] flex-col rounded-2xl border border-white/30 bg-white/55 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
+    <section className='flex lg:h-full lg:min-h-[420px] flex-col rounded-2xl border border-white/30 bg-white/55 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
       <header className='mb-3'>
         <h2 className='text-lg font-semibold text-slate-900 dark:text-slate-100'>Vehicle List</h2>
       </header>

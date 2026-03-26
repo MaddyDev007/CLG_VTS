@@ -104,7 +104,7 @@ export function RoutesPage() {
 
       {canCreateRoute && isCreateModalOpen ? (
         <div className='fixed inset-0 z-40 flex items-center justify-center bg-slate-950/55 p-4'>
-          <div className='relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/30 bg-white p-2 shadow-2xl dark:border-slate-700 dark:bg-[#1e293b]'>
+          <div className='relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/30 bg-white  shadow-2xl dark:border-slate-700 dark:bg-[#1e293b]'>
             <button
               type='button'
               onClick={() => setIsCreateModalOpen(false)}

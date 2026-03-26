@@ -42,6 +42,7 @@ export function VehicleInfoCard({
           <h3 className='text-lg font-semibold text-slate-900 dark:text-slate-100'>{vehicleName}</h3>
           <p className='text-sm text-slate-600 dark:text-slate-300'>{registrationNumber}</p>
         </div>
+        
 
         <StatusBadge status={status} className='px-3 py-1' />
       </div>

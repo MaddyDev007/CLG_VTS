@@ -38,7 +38,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   }
 
   return (
-    <header className='flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5 dark:border-slate-700 dark:bg-[#1e293b]'>
+    <header className='flex py-2 items-center justify-between border-b border-slate-200 bg-white px-5 dark:border-slate-700 dark:bg-[#1e293b]'>
       <div className='flex items-center gap-3'>
         <button
           type='button'
@@ -65,7 +65,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           className='relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:bg-[#1e293b] dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
           aria-label='Notifications'
         >
-          <FiBell size={18} />
+          <FiBell size={16} />
           {unreadCount > 0 ? (
             <span className='absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-red-500' />
           ) : null}
@@ -77,7 +77,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <button
             type='button'
             onClick={() => setIsMenuOpen((prev) => !prev)}
-            className='inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-left transition hover:border-blue-600 dark:border-slate-600 dark:bg-[#1e293b] dark:hover:border-[#38bdf8]'
+            className='inline-flex sm:h-full h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-left transition hover:border-blue-600 dark:border-slate-600 dark:bg-[#1e293b] dark:hover:border-[#38bdf8]'
             aria-expanded={isMenuOpen}
             aria-haspopup='menu'
           >

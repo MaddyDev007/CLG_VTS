@@ -85,7 +85,7 @@ export function LiveMapPage() {
     <div className='mx-auto w-full max-w-7xl'>
       <section className='grid grid-cols-1 gap-5 xl:grid-cols-10'>
         <div className='xl:col-span-7'>
-          <article className='flex min-h-[560px] lg:h-[85vh] flex-col rounded-2xl border border-white/30 bg-white/55 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
+          <article className='flex h-[560px] lg:h-[85vh] flex-col rounded-2xl border border-white/30 bg-white/55 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
             <header className='mb-3 flex items-center justify-between gap-3'>
               <div>
                 <h2 className='text-lg font-semibold text-slate-900 dark:text-slate-100'>Live Map</h2>

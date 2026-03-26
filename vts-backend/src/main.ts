@@ -22,7 +22,16 @@ async function bootstrap() {
     app.setGlobalPrefix(prefix)
   }
 
-  app.enableCors({ origin: true, credentials: true })
+  // app.enableCors({ origin: true, credentials: true })
+  app.enableCors({
+  origin: [
+    'http://192.168.31.41:5173',
+    'http://localhost:5173',
+  ],
+  credentials: true,
+})
+
+
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('VTS API')
@@ -43,7 +52,8 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document)
 
   const port = configService.get<number>('PORT', 3000)
-  await app.listen(port)
+  // await app.listen(port)
+  await app.listen(port, '0.0.0.0')
 }
 
 bootstrap()
