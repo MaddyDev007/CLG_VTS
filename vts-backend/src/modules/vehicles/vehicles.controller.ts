@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { VehiclesService } from './vehicles.service'
 import { CreateVehicleDto } from './dto/create-vehicle.dto'
@@ -10,6 +10,7 @@ import { CurrentUser } from '../../common/auth/current-user.decorator'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
 import { Roles } from '../../common/guards/roles.decorator'
 import { RolesGuard } from '../../common/guards/roles.guard'
+import { ListVehiclesDto } from './dto/list-vehicles.dto'
 
 @ApiTags('Vehicles')
 @ApiBearerAuth('access-token')
@@ -25,8 +26,8 @@ export class VehiclesController {
   @ApiOperation({ summary: 'List vehicles' })
   @ApiResponse({ status: 200 })
   @Get()
-  async list(@CurrentUser() user: AuthenticatedUser) {
-    return this.vehiclesService.findAll(user)
+  async list(@CurrentUser() user: AuthenticatedUser, @Query() query: ListVehiclesDto) {
+    return this.vehiclesService.findAll(user, query)
   }
 
   @ApiOperation({ summary: 'Vehicle status counts' })

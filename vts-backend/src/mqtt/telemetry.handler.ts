@@ -7,25 +7,7 @@ import { TripsService } from '../modules/trips/trips.service'
 import { EventsService } from '../modules/events/events.service'
 import { computeVehicleStatus, getOfflineThresholdMs } from '../common/utils/vehicleStatus'
 import { diffMs } from '../common/utils/time'
-
-type VehicleState = {
-  activeTripId?: string
-  tripStartTime?: Date
-  tripDistanceKm: number
-  lastPoint?: { lat: number; lon: number; timestamp: Date }
-  tripPendingClose?: boolean
-  tripCloseTimestamp?: Date | null
-  idleStartAt?: Date | null
-  idleActive?: boolean
-  idleStartLocation?: string | null
-  idleStartLat?: number | null
-  idleStartLon?: number | null
-  overspeedActive?: boolean
-  overspeedEventId?: string | null
-  overspeedStartTime?: Date | null
-  overspeedMaxSpeed?: number | null
-  overspeedSpeedLimit?: number | null
-}
+import { TelemetryStateService, type VehicleRuntimeState } from './telemetry-state.service'
 
 type RawTelemetryPayload = {
   device_id?: string
@@ -41,7 +23,6 @@ type RawTelemetryPayload = {
 
 @Injectable()
 export class TelemetryHandler {
-  private readonly vehicleState = new Map<string, VehicleState>()
   private readonly idleThresholdMs = 60 * 1000
   private readonly logger = new Logger(TelemetryHandler.name)
   private readonly offlineThresholdMs = getOfflineThresholdMs()
@@ -53,14 +34,19 @@ export class TelemetryHandler {
     private readonly tripsService: TripsService,
     private readonly eventsService: EventsService,
     private readonly telemetryGateway: TelemetryGateway,
+    private readonly telemetryStateService: TelemetryStateService,
   ) {}
 
   async handle(topic: string, payload: string) {
+    let parsedPayload: RawTelemetryPayload | null = null
+    let deviceId: string | null = this.getDeviceIdFromTopic(topic)
+
     try {
       const data = JSON.parse(payload) as RawTelemetryPayload
+      parsedPayload = data
       console.log(`[MQTT] message received topic=${topic}`)
 
-      const deviceId = data.device_id ?? this.getDeviceIdFromTopic(topic)
+      deviceId = data.device_id ?? deviceId
       if (!deviceId || !this.isValidPayload(data)) {
         return
       }
@@ -140,13 +126,51 @@ export class TelemetryHandler {
       this.telemetryGateway.broadcastTelemetry({
         vehicleId: vehicle.id,
         lat: record.lat,
-        lon: record.lon,
+        lng: record.lon,
         speed,
         status: computedStatus,
+        timestamp: record.timestamp.toISOString(),
       })
-    } catch {
+    } catch (error) {
+      this.logTelemetryFailure({
+        error,
+        deviceId,
+        topic,
+        payload: parsedPayload ?? payload,
+        timestamp: new Date().toISOString(),
+      })
       return
     }
+  }
+
+  private logTelemetryFailure(input: {
+    error: unknown
+    deviceId: string | null
+    topic: string
+    payload: unknown
+    timestamp: string
+  }) {
+    const serializedError =
+      input.error instanceof Error
+        ? {
+            name: input.error.name,
+            message: input.error.message,
+            stack: input.error.stack,
+          }
+        : {
+            message: String(input.error),
+          }
+
+    this.logger.error(
+      JSON.stringify({
+        event: 'telemetry_handler_failure',
+        error: serializedError,
+        deviceId: input.deviceId,
+        topic: input.topic,
+        payload: input.payload,
+        timestamp: input.timestamp,
+      }),
+    )
   }
 
   private getDeviceIdFromTopic(topic: string): string | null {
@@ -184,12 +208,13 @@ export class TelemetryHandler {
     resolvedLocation: string,
     vehicleSpeedLimit: number,
   ) {
-    const state = this.vehicleState.get(vehicleId) ?? {
+    const state = (await this.telemetryStateService.getVehicleState(vehicleId)) ?? {
       tripDistanceKm: 0,
     }
 
     const now = record.timestamp
     const tripTimeoutMs = 2 * 60 * 1000
+    const tripCloseTimestamp = this.parseDate(state.tripCloseTimestamp)
 
     const finalizeTripState = () => {
       state.activeTripId = undefined
@@ -203,6 +228,18 @@ export class TelemetryHandler {
     const updateTripMetrics = async () => {
       if (!state.activeTripId || !state.tripStartTime) {
         return
+      }
+
+      const tripStartTime = this.parseDate(state.tripStartTime)
+      if (!tripStartTime) {
+        return
+      }
+
+      if (state.lastPoint) {
+        const lastPointTimestamp = this.parseDate(state.lastPoint.timestamp)
+        if (!lastPointTimestamp) {
+          state.lastPoint = undefined
+        }
       }
 
       if (state.lastPoint) {
@@ -221,9 +258,9 @@ export class TelemetryHandler {
         }
       }
 
-      state.lastPoint = { lat: record.lat, lon: record.lon, timestamp: record.timestamp }
+      state.lastPoint = { lat: record.lat, lon: record.lon, timestamp: record.timestamp.toISOString() }
 
-      const durationMs = diffMs(state.tripStartTime, now)
+      const durationMs = diffMs(tripStartTime, now)
       await this.tripsService.updateTrip(state.activeTripId, {
         endTime: now,
         endLocation: resolvedLocation,
@@ -242,8 +279,8 @@ export class TelemetryHandler {
     }
 
     if (ignition) {
-      if (state.activeTripId && state.tripPendingClose && state.tripCloseTimestamp) {
-        const gapMs = now.getTime() - state.tripCloseTimestamp.getTime()
+      if (state.activeTripId && state.tripPendingClose && tripCloseTimestamp) {
+        const gapMs = now.getTime() - tripCloseTimestamp.getTime()
         if (gapMs < tripTimeoutMs) {
           state.tripPendingClose = false
           state.tripCloseTimestamp = null
@@ -262,9 +299,9 @@ export class TelemetryHandler {
           startTime: record.timestamp,
         })
         state.activeTripId = trip.id
-        state.tripStartTime = record.timestamp
+        state.tripStartTime = record.timestamp.toISOString()
         state.tripDistanceKm = 0
-        state.lastPoint = { lat: record.lat, lon: record.lon, timestamp: record.timestamp }
+        state.lastPoint = { lat: record.lat, lon: record.lon, timestamp: record.timestamp.toISOString() }
         state.tripPendingClose = false
         state.tripCloseTimestamp = null
         this.logger.debug(`trip_started vehicleId=${vehicleId} tripId=${trip.id} timestamp=${now.toISOString()}`)
@@ -276,10 +313,10 @@ export class TelemetryHandler {
 
       if (!state.tripPendingClose) {
         state.tripPendingClose = true
-        state.tripCloseTimestamp = now
+        state.tripCloseTimestamp = now.toISOString()
         this.logger.debug(`trip_ended vehicleId=${vehicleId} tripId=${state.activeTripId} timestamp=${now.toISOString()}`)
-      } else if (state.tripCloseTimestamp) {
-        const gapMs = now.getTime() - state.tripCloseTimestamp.getTime()
+      } else if (tripCloseTimestamp) {
+        const gapMs = now.getTime() - tripCloseTimestamp.getTime()
         if (gapMs >= tripTimeoutMs) {
           finalizeTripState()
         }
@@ -290,7 +327,7 @@ export class TelemetryHandler {
 
     if (speed > speedLimit && !state.overspeedActive) {
       state.overspeedActive = true
-      state.overspeedStartTime = record.timestamp
+      state.overspeedStartTime = record.timestamp.toISOString()
       state.overspeedMaxSpeed = speed
       state.overspeedSpeedLimit = speedLimit
 
@@ -313,7 +350,7 @@ export class TelemetryHandler {
         `overspeed_started vehicleId=${vehicleId} speed=${speed} limit=${speedLimit}`,
       )
     } else if (speed > speedLimit && state.overspeedActive && state.overspeedEventId) {
-      const startTime = state.overspeedStartTime ?? record.timestamp
+      const startTime = this.parseDate(state.overspeedStartTime) ?? record.timestamp
       const maxSpeed = Math.max(state.overspeedMaxSpeed ?? speed, speed)
       const durationMs = diffMs(startTime, record.timestamp)
 
@@ -332,7 +369,7 @@ export class TelemetryHandler {
     }
 
     if (speed <= speedLimit && state.overspeedActive && state.overspeedEventId) {
-      const startTime = state.overspeedStartTime ?? record.timestamp
+      const startTime = this.parseDate(state.overspeedStartTime) ?? record.timestamp
       const durationMs = diffMs(startTime, record.timestamp)
       await this.eventsService.updateOverspeed(state.overspeedEventId, {
         endTime: record.timestamp,
@@ -350,18 +387,19 @@ export class TelemetryHandler {
 
     if (ignition && speed === 0) {
       if (!state.idleStartAt) {
-        state.idleStartAt = record.timestamp
+        state.idleStartAt = record.timestamp.toISOString()
         state.idleStartLocation = resolvedLocation
         state.idleStartLat = record.lat
         state.idleStartLon = record.lon
       }
 
-      if (!state.idleActive && state.idleStartAt) {
-        const idleDurationMs = record.timestamp.getTime() - state.idleStartAt.getTime()
+      const idleStartAt = this.parseDate(state.idleStartAt)
+      if (!state.idleActive && idleStartAt) {
+        const idleDurationMs = record.timestamp.getTime() - idleStartAt.getTime()
         if (idleDurationMs >= this.idleThresholdMs) {
           state.idleActive = true
           this.logger.debug(
-            `idle_started vehicleId=${vehicleId} startTime=${state.idleStartAt.toISOString()}`,
+            `idle_started vehicleId=${vehicleId} startTime=${idleStartAt.toISOString()}`,
           )
         }
       }
@@ -373,7 +411,7 @@ export class TelemetryHandler {
     }
 
     if (state.idleActive && (speed > 5 || !ignition)) {
-      const startTime = state.idleStartAt
+      const startTime = this.parseDate(state.idleStartAt)
       const endTime = record.timestamp
       if (startTime) {
         const durationMs = diffMs(startTime, endTime)
@@ -401,7 +439,32 @@ export class TelemetryHandler {
       state.idleStartLon = null
     }
 
-    this.vehicleState.set(vehicleId, state)
+    await this.persistState(vehicleId, state)
+  }
+
+  private async persistState(vehicleId: string, state: VehicleRuntimeState) {
+    if (
+      !state.activeTripId &&
+      !state.tripPendingClose &&
+      !state.idleActive &&
+      !state.idleStartAt &&
+      !state.overspeedActive &&
+      !state.overspeedEventId
+    ) {
+      await this.telemetryStateService.clearVehicleState(vehicleId)
+      return
+    }
+
+    await this.telemetryStateService.setVehicleState(vehicleId, state)
+  }
+
+  private parseDate(value?: string | null): Date | null {
+    if (!value) {
+      return null
+    }
+
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
   }
 
   private calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {

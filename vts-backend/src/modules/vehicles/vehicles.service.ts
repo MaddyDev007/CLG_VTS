@@ -10,6 +10,7 @@ import { computeVehicleStatus, getOfflineThresholdMs } from '../../common/utils/
 import { Route } from '../routes/route.entity'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
 import { applyTenantScope, assertTenantAccess, mergeCollegeWhere, requireCollegeScope } from '../../common/tenant/tenant-scope'
+import { ListVehiclesDto } from './dto/list-vehicles.dto'
 
 @Injectable()
 export class VehiclesService {
@@ -23,12 +24,49 @@ export class VehiclesService {
     private readonly devicesService: DevicesService,
   ) {}
 
-  async findAll(actor: AuthenticatedUser): Promise<Vehicle[]> {
-    const vehicles = await this.vehicleRepo.find({
-      where: mergeCollegeWhere<Vehicle>(actor, {}),
-      order: { updatedAt: 'DESC' },
-    })
-    return Promise.all(vehicles.map((vehicle) => this.applyTelemetryStatus(vehicle)))
+  async findAll(actor: AuthenticatedUser, filters: ListVehiclesDto): Promise<{
+    data: Vehicle[]
+    total: number
+    page: number
+    totalPages: number
+  }> {
+    const page = filters.page ?? 1
+    const limit = filters.limit ?? 20
+    const query = this.vehicleRepo.createQueryBuilder('vehicle').orderBy('vehicle.updatedAt', 'DESC')
+
+    applyTenantScope(query, 'vehicle', actor)
+
+    if (filters.search?.trim()) {
+      const search = `%${filters.search.trim().toLowerCase()}%`
+      query.andWhere(
+        '(LOWER(vehicle.vehicleName) LIKE :search OR LOWER(vehicle.registrationNumber) LIKE :search OR LOWER(COALESCE(vehicle.address, \'\')) LIKE :search OR LOWER(COALESCE(vehicle.deviceId, \'\')) LIKE :search)',
+        { search },
+      )
+    }
+
+    if (filters.fromDate) {
+      query.andWhere('COALESCE(vehicle.lastSeen, vehicle.updatedAt) >= :fromDate', { fromDate: filters.fromDate })
+    }
+
+    if (filters.toDate) {
+      query.andWhere('COALESCE(vehicle.lastSeen, vehicle.updatedAt) <= :toDate', { toDate: filters.toDate })
+    }
+
+    const vehicles = await query.getMany()
+    const scopedVehicles = await Promise.all(vehicles.map((vehicle) => this.applyTelemetryStatus(vehicle)))
+    const filteredVehicles = filters.status
+      ? scopedVehicles.filter((vehicle) => vehicle.status === filters.status)
+      : scopedVehicles
+    const total = filteredVehicles.length
+    const startIndex = (page - 1) * limit
+    const data = filteredVehicles.slice(startIndex, startIndex + limit)
+
+    return {
+      data,
+      total,
+      page,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    }
   }
 
   async findById(id: string, actor?: AuthenticatedUser): Promise<Vehicle> {
@@ -154,14 +192,33 @@ export class VehiclesService {
   }
 
   async getStatusCounts(actor: AuthenticatedUser) {
-    const vehicles = await this.findAll(actor)
-    return vehicles.reduce(
+    const vehicles = await this.vehicleRepo.find({
+      where: mergeCollegeWhere<Vehicle>(actor, {}),
+      order: { updatedAt: 'DESC' },
+    })
+    const scopedVehicles = await Promise.all(vehicles.map((vehicle) => this.applyTelemetryStatus(vehicle)))
+    return scopedVehicles.reduce(
       (acc, item) => {
         acc.total += 1
-        acc[item.status] += 1
+
+        if (item.status === 'moving') {
+          acc.active += 1
+        } else if (item.status === 'offline') {
+          acc.offline += 1
+        } else {
+          acc.idle += 1
+          if (item.status === 'stopped') {
+            acc.stopped += 1
+          }
+        }
+
+        if (item.status !== 'offline' && item.speed > (item.speedLimit ?? 75)) {
+          acc.overspeed += 1
+        }
+
         return acc
       },
-      { total: 0, moving: 0, idling: 0, stopped: 0, offline: 0 } as Record<string, number>,
+      { total: 0, active: 0, idle: 0, offline: 0, overspeed: 0, stopped: 0 },
     )
   }
 

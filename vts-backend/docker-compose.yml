@@ -26,6 +26,13 @@ services:
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
 
+  redis:
+    image: redis:7-alpine
+    container_name: vts-redis
+    restart: always
+    ports:
+      - "6379:6379"
+
   temporal:
     image: temporalio/auto-setup:1.23
     container_name: vts-temporal

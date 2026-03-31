@@ -7,6 +7,7 @@ import { DevicesModule } from '../modules/devices/devices.module'
 import { TripsModule } from '../modules/trips/trips.module'
 import { EventsModule } from '../modules/events/events.module'
 import { WebsocketModule } from '../websocket/websocket.module'
+import { TelemetryStateService } from './telemetry-state.service'
 
 @Module({
   imports: [
@@ -17,6 +18,6 @@ import { WebsocketModule } from '../websocket/websocket.module'
     EventsModule,
     WebsocketModule,
   ],
-  providers: [MqttService, TelemetryHandler],
+  providers: [MqttService, TelemetryHandler, TelemetryStateService],
 })
 export class MqttModule {}

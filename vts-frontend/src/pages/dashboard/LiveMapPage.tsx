@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { VehicleMap } from '@components/map/VehicleMap'
 import { StatusBadge } from '@components/ui/StatusBadge'
 import { VehicleListPanel } from '@components/vehicles/VehicleListPanel'
+import { useVehicleSocket } from '@hooks/useVehicleSocket'
 import { vehicleService } from '@services/vehicleService'
 import { routeService } from '@services/routeService'
 import { geofenceService } from '@services/geofenceService'
@@ -23,7 +24,7 @@ export function LiveMapPage() {
   const [showGeofences, setShowGeofences] = useState(true)
 
   const loadVehicles = useCallback(async () => {
-    const nextVehicles = await vehicleService.getVehicles()
+    const nextVehicles = await vehicleService.getVehicles({ page: 1, limit: 500 })
     setVehicles(nextVehicles)
 
     setSelectedVehicleId((currentSelectedId) => {
@@ -46,6 +47,23 @@ export function LiveMapPage() {
 
   }, [])
 
+  useVehicleSocket((payload) => {
+    setVehicles((currentVehicles) =>
+      currentVehicles.map((vehicle) =>
+        vehicle.id === payload.vehicleId
+          ? {
+              ...vehicle,
+              lat: payload.lat,
+              lon: payload.lng,
+              speed: payload.speed,
+              status: payload.status,
+              lastSeen: payload.timestamp,
+            }
+          : vehicle,
+      ),
+    )
+  })
+
   useEffect(() => {
     const loadStaticLayers = async () => {
       const [nextRoutes, nextGeofences] = await Promise.all([
@@ -61,14 +79,6 @@ export function LiveMapPage() {
 
   useEffect(() => {
     void loadVehicles()
-
-    const intervalId = window.setInterval(() => {
-      void loadVehicles()
-    }, 5000)
-
-    return () => {
-      window.clearInterval(intervalId)
-    }
   }, [loadVehicles])
 
   const handleVehicleSelect = (vehicle: Vehicle) => {
@@ -89,7 +99,7 @@ export function LiveMapPage() {
             <header className='mb-3 flex items-center justify-between gap-3'>
               <div>
                 <h2 className='text-lg font-semibold text-slate-900 dark:text-slate-100'>Live Map</h2>
-                <p className='text-sm text-slate-600 dark:text-slate-300'>Auto-refreshing every 5 seconds</p>
+                <p className='text-sm text-slate-600 dark:text-slate-300'>Realtime vehicle updates</p>
               </div>
               {selectedVehicle ? (
                 <p className='text-xs font-medium text-blue-600 dark:text-[#38bdf8]'>

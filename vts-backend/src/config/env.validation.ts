@@ -51,6 +51,15 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   TEMPORAL_ADDRESS?: string
+
+  @IsOptional()
+  @IsString()
+  REDIS_URL?: string
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  REDIS_STATE_TTL_SECONDS?: number
 }
 
 export function validateEnv(config: Record<string, unknown>) {

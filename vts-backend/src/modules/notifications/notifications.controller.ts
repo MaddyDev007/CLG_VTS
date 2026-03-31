@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { NotificationsService } from './notifications.service'
 import { CreateNotificationDto } from './dto/create-notification.dto'
 import { CurrentUser } from '../../common/auth/current-user.decorator'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
+import { ListNotificationsDto } from './dto/list-notifications.dto'
 
 @ApiTags('Notifications')
 @ApiBearerAuth('access-token')
@@ -16,8 +17,8 @@ export class NotificationsController {
   @ApiOperation({ summary: 'List notifications' })
   @ApiResponse({ status: 200 })
   @Get()
-  async list(@CurrentUser() user: AuthenticatedUser) {
-    return this.notificationsService.findAll(user)
+  async list(@CurrentUser() user: AuthenticatedUser, @Query() query: ListNotificationsDto) {
+    return this.notificationsService.findAll(user, query)
   }
 
   @ApiOperation({ summary: 'Create notification' })

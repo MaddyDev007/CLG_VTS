@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FiPlus } from 'react-icons/fi'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Pagination } from '@components/ui/Pagination'
 import { AddVehicleModal } from '@components/vehicles/AddVehicleModal'
 import { VehicleCard } from '@components/vehicles/VehicleCard'
 import { vehicleService } from '@services/vehicleService'
@@ -18,6 +19,9 @@ export function VehiclesPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | VehicleStatus>('all')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(8)
+  const [total, setTotal] = useState(0)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
 
@@ -36,32 +40,25 @@ export function VehiclesPage() {
     setStatusFilter(initialStatusFilter)
   }, [initialStatusFilter])
 
-  const filteredVehicles = useMemo(() => {
-    const query = search.trim().toLowerCase()
-
-    return vehicles.filter((vehicle) => {
-      const matchesSearch =
-        vehicle.vehicleName.toLowerCase().includes(query) ||
-        vehicle.registrationNumber.toLowerCase().includes(query) ||
-        vehicle.address.toLowerCase().includes(query)
-
-      const matchesStatus = statusFilter === 'all' ? true : vehicle.status === statusFilter
-
-      return matchesSearch && matchesStatus
-    })
-  }, [vehicles, search, statusFilter])
-
   const loadVehicles = async () => {
     setIsLoading(true)
-    const data = await vehicleService.getVehicles()
-    setVehicles(data)
-    setIsLoading(false)
-
+    try {
+      const response = await vehicleService.getVehiclesPage({
+        page,
+        limit,
+        search,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+      })
+      setVehicles(response.data)
+      setTotal(response.total)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   useEffect(() => {
     void loadVehicles()
-  }, [])
+  }, [limit, page, search, statusFilter])
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-5'>
@@ -86,13 +83,19 @@ export function VehiclesPage() {
         <div className='mt-4 flex flex-col gap-3 md:flex-row md:items-center'>
           <input
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
             placeholder='Search by vehicle, registration, address...'
             className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 md:max-w-sm dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
           />
           <select
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as 'all' | VehicleStatus)}
+            onChange={(event) => {
+              setStatusFilter(event.target.value as 'all' | VehicleStatus)
+              setPage(1)
+            }}
             className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm capitalize text-slate-900 outline-none transition focus:border-blue-500 md:w-56 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
           >
             {statusOptions.map((status) => (
@@ -111,7 +114,7 @@ export function VehiclesPage() {
       ) : (
         <div className='w-full space-y-4'>
           <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-          {filteredVehicles.map((vehicle) => (
+          {vehicles.map((vehicle) => (
             <VehicleCard
               key={vehicle.id}
               onClick={() => navigate(`/vehicles/${vehicle.id}`)}
@@ -128,11 +131,21 @@ export function VehiclesPage() {
             />
           ))}
           </div>
-          {filteredVehicles.length === 0 ? (
+          {vehicles.length === 0 ? (
             <div className='rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300'>
               No vehicles match the current status filter.
             </div>
           ) : null}
+          <Pagination
+            page={page}
+            limit={limit}
+            total={total}
+            onPageChange={setPage}
+            onLimitChange={(nextLimit) => {
+              setLimit(nextLimit)
+              setPage(1)
+            }}
+          />
         </div>
       )}
 

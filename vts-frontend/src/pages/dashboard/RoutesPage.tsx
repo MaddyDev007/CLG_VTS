@@ -30,7 +30,7 @@ export function RoutesPage() {
     try {
       const [routesData, vehiclesData] = await Promise.all([
         routeService.getRoutes(),
-        vehicleService.getVehicles(),
+        vehicleService.getVehicles({ page: 1, limit: 500 }),
       ])
       setRoutes(routesData)
       setVehicles(vehiclesData)

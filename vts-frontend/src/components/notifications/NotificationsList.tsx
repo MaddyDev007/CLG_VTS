@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react'
-import { Pagination } from '@components/ui/Pagination'
+import { useMemo } from 'react'
 import type { Notification } from '../../types/notification'
 
 type NotificationsListProps = {
@@ -41,18 +40,10 @@ function resolveEventLabel(notification: Notification): string {
 }
 
 export function NotificationsList({ notifications, onMarkAsRead }: NotificationsListProps) {
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
-
   const sortedNotifications = useMemo(
     () => [...notifications].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
     [notifications],
   )
-
-  const paginatedNotifications = useMemo(() => {
-    const startIndex = (page - 1) * limit
-    return sortedNotifications.slice(startIndex, startIndex + limit)
-  }, [limit, page, sortedNotifications])
 
   const resolveLocation = (location: string) => (location.trim().length > 0 ? location : 'Location unavailable')
 
@@ -71,8 +62,8 @@ export function NotificationsList({ notifications, onMarkAsRead }: Notifications
             </tr>
           </thead>
           <tbody>
-            {paginatedNotifications.length ? (
-              paginatedNotifications.map((notification) => (
+            {sortedNotifications.length ? (
+              sortedNotifications.map((notification) => (
                 <tr
                   key={notification.id}
                   className={`border-b border-slate-200/70 transition dark:border-slate-700/70 ${
@@ -122,17 +113,6 @@ export function NotificationsList({ notifications, onMarkAsRead }: Notifications
           </tbody>
         </table>
       </div>
-
-      <Pagination
-        page={page}
-        limit={limit}
-        total={sortedNotifications.length}
-        onPageChange={setPage}
-        onLimitChange={(nextLimit) => {
-          setLimit(nextLimit)
-          setPage(1)
-        }}
-      />
     </section>
   )
 }

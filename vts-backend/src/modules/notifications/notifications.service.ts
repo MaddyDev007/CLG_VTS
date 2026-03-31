@@ -7,6 +7,8 @@ import { Route } from '../routes/route.entity'
 import { Vehicle } from '../vehicles/vehicle.entity'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
 import { applyCollegeScope, mergeCollegeWhere } from '../../common/tenant/tenant-scope'
+import { TelemetryGateway } from '../../websocket/telemetry.gateway'
+import { ListNotificationsDto } from './dto/list-notifications.dto'
 
 @Injectable()
 export class NotificationsService {
@@ -14,9 +16,17 @@ export class NotificationsService {
     @InjectRepository(Notification) private readonly notificationRepo: Repository<Notification>,
     @InjectRepository(Route) private readonly routeRepo: Repository<Route>,
     @InjectRepository(Vehicle) private readonly vehicleRepo: Repository<Vehicle>,
+    private readonly telemetryGateway: TelemetryGateway,
   ) {}
 
-  async findAll(actor: AuthenticatedUser): Promise<Notification[]> {
+  async findAll(actor: AuthenticatedUser, filters: ListNotificationsDto): Promise<{
+    data: Notification[]
+    total: number
+    page: number
+    totalPages: number
+  }> {
+    const page = filters.page ?? 1
+    const limit = filters.limit ?? 20
     const query = this.notificationRepo
       .createQueryBuilder('n')
       .leftJoin('geofences', 'g', 'g.id = n."geofenceId"')
@@ -25,11 +35,41 @@ export class NotificationsService {
 
     applyCollegeScope(query, 'n', actor)
 
+    if (filters.search?.trim()) {
+      const search = `%${filters.search.trim().toLowerCase()}%`
+      query.andWhere(
+        '(LOWER(n.vehicleName) LIKE :search OR LOWER(n.message) LIKE :search OR LOWER(n.location) LIKE :search OR LOWER(COALESCE(n.routeName, \'\')) LIKE :search)',
+        { search },
+      )
+    }
+
+    if (filters.type) {
+      query.andWhere('n.type = :type', { type: filters.type })
+    }
+
+    if (filters.fromDate) {
+      query.andWhere('n.timestamp >= :fromDate', { fromDate: filters.fromDate })
+    }
+
+    if (filters.toDate) {
+      query.andWhere('n.timestamp <= :toDate', { toDate: filters.toDate })
+    }
+
+    query.skip((page - 1) * limit).take(limit)
+
+    const total = await query.getCount()
     const { entities, raw } = await query.getRawAndEntities()
-    return entities.map((entity, index) => ({
+    const data = entities.map((entity, index) => ({
       ...entity,
       geofenceName: raw[index]?.geofenceName ?? null,
     }))
+
+    return {
+      data,
+      total,
+      page,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    }
   }
 
   async create(payload: CreateNotificationDto): Promise<Notification> {
@@ -52,7 +92,20 @@ export class NotificationsService {
       routeName,
       read: false,
     })
-    return this.notificationRepo.save(notification)
+    const saved = await this.notificationRepo.save(notification)
+    this.telemetryGateway.broadcastNotification({
+      id: saved.id,
+      type: saved.type,
+      vehicleId: saved.vehicleId,
+      vehicleName: saved.vehicleName,
+      message: saved.message,
+      location: saved.location,
+      geofenceId: saved.geofenceId ?? null,
+      routeName: saved.routeName ?? null,
+      timestamp: saved.timestamp.toISOString(),
+      read: saved.read,
+    })
+    return saved
   }
 
   async markAsRead(id: string, actor: AuthenticatedUser): Promise<Notification> {

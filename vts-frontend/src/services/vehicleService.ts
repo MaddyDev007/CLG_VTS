@@ -36,6 +36,22 @@ export type DeleteVehicleResponse = {
   message: string
 }
 
+export type VehicleListParams = {
+  page?: number
+  limit?: number
+  search?: string
+  status?: Vehicle['status']
+  fromDate?: string
+  toDate?: string
+}
+
+export type PaginatedResponse<T> = {
+  data: T[]
+  total: number
+  page: number
+  totalPages: number
+}
+
 type BackendVehicle = {
   id: string
   collegeId?: string | null
@@ -53,6 +69,15 @@ type BackendVehicle = {
   geofenceName?: string | null
   lastSeen: string | null
   routeId: string | null
+}
+
+type BackendVehicleStatusCounts = {
+  total: number
+  active: number
+  idle: number
+  offline: number
+  overspeed: number
+  stopped?: number
 }
 
 function normalizeVehicle(vehicle: BackendVehicle): Vehicle {
@@ -79,9 +104,32 @@ function normalizeVehicle(vehicle: BackendVehicle): Vehicle {
 }
 
 class VehicleService {
-  async getVehicles(): Promise<Vehicle[]> {
-    const vehicles = await apiClient.get<BackendVehicle[]>('/vehicles')
-    return filterByActiveCollege(vehicles).map(normalizeVehicle)
+  private buildListQuery(params?: VehicleListParams): string {
+    const searchParams = new URLSearchParams()
+
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    if (params?.search?.trim()) searchParams.set('search', params.search.trim())
+    if (params?.status) searchParams.set('status', params.status)
+    if (params?.fromDate) searchParams.set('fromDate', params.fromDate)
+    if (params?.toDate) searchParams.set('toDate', params.toDate)
+
+    const suffix = searchParams.toString()
+    return suffix ? `/vehicles?${suffix}` : '/vehicles'
+  }
+
+  async getVehiclesPage(params?: VehicleListParams): Promise<PaginatedResponse<Vehicle>> {
+    const response = await apiClient.get<PaginatedResponse<BackendVehicle>>(this.buildListQuery(params))
+
+    return {
+      ...response,
+      data: filterByActiveCollege(response.data).map(normalizeVehicle),
+    }
+  }
+
+  async getVehicles(params?: VehicleListParams): Promise<Vehicle[]> {
+    const response = await this.getVehiclesPage(params)
+    return response.data
   }
 
   async getVehicleById(vehicleId: string): Promise<Vehicle | null> {
@@ -97,17 +145,16 @@ class VehicleService {
     return apiClient.get<TelemetryPoint[]>(`/vehicles/${vehicleId}/telemetry`)
   }
 
-  async getVehicleStatusCounts(): Promise<VehicleStatusCounts> {
-    const vehicles = await this.getVehicles()
+  async getStatusCounts(): Promise<VehicleStatusCounts> {
+    const counts = await apiClient.get<BackendVehicleStatusCounts>('/vehicles/status-counts')
 
-    return vehicles.reduce<VehicleStatusCounts>(
-      (acc, vehicle) => {
-        acc.total += 1
-        acc[vehicle.status] += 1
-        return acc
-      },
-      { total: 0, moving: 0, idling: 0, offline: 0, stopped: 0 },
-    )
+    return {
+      total: counts.total ?? 0,
+      moving: counts.active ?? 0,
+      idling: Math.max(0, (counts.idle ?? 0) - (counts.stopped ?? 0)),
+      stopped: counts.stopped ?? 0,
+      offline: counts.offline ?? 0,
+    }
   }
 
   async createVehicle(vehicleData: CreateVehicleInput): Promise<CreateVehicleResponse> {

@@ -115,12 +115,12 @@ export function DashboardPage() {
 
   useEffect(() => {
     const loadCounts = async () => {
-      const nextCounts = await vehicleService.getVehicleStatusCounts()
+      const nextCounts = await vehicleService.getStatusCounts()
       setCounts({ ...nextCounts, stopped: nextCounts.stopped ?? 0 })
     }
 
     const loadActivities = async () => {
-      const notifications = await notificationService.getNotifications()
+      const notifications = await notificationService.getNotifications({ page: 1, limit: 10 })
       setActivities(
         notifications
           .slice(0, 10)

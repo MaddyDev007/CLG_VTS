@@ -34,7 +34,7 @@ export const useNotificationStore = create<NotificationStore>()((set) => ({
   ...initialState,
 
   loadNotifications: async () => {
-    const notifications = await notificationService.getNotifications()
+    const notifications = await notificationService.getNotifications({ page: 1, limit: 50 })
     set({
       notifications,
       unreadCount: countUnread(notifications),
@@ -50,9 +50,18 @@ export const useNotificationStore = create<NotificationStore>()((set) => ({
     const nextNotification = notification
 
     set((state) => {
-      const notifications = [nextNotification, ...state.notifications]
-      const toasts = [nextNotification, ...state.toasts].slice(0, 5)
-      const unreadCount = nextNotification.read ? state.unreadCount : state.unreadCount + 1
+      const existingNotification = state.notifications.find((item) => item.id === nextNotification.id)
+      const notifications = existingNotification
+        ? state.notifications.map((item) => (item.id === nextNotification.id ? nextNotification : item))
+        : [nextNotification, ...state.notifications]
+      const toasts = existingNotification
+        ? state.toasts
+        : [nextNotification, ...state.toasts].slice(0, 5)
+      const unreadCount = existingNotification
+        ? countUnread(notifications)
+        : nextNotification.read
+          ? state.unreadCount
+          : state.unreadCount + 1
 
       return {
         notifications,
