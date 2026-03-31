@@ -13,11 +13,12 @@ type TelemetryFiltersProps = {
   devices: string[]
   onChange: (filters: TelemetryFilterPayload) => void
   initialFilters?: TelemetryFilterPayload
+  disabled?: boolean
 }
 
 type IgnitionOption = 'all' | 'on' | 'off'
 
-export function TelemetryFilters({ vehicles, devices, onChange, initialFilters }: TelemetryFiltersProps) {
+export function TelemetryFilters({ vehicles, devices, onChange, initialFilters, disabled = false }: TelemetryFiltersProps) {
   const [vehicleId, setVehicleId] = useState(initialFilters?.vehicleId ?? '')
   const [deviceId, setDeviceId] = useState(initialFilters?.deviceId ?? '')
   const [dateRange, setDateRange] = useState<TelemetryDateRange>(initialFilters?.dateRange ?? 'today')
@@ -72,6 +73,7 @@ export function TelemetryFilters({ vehicles, devices, onChange, initialFilters }
         <select
           value={vehicleId}
           onChange={(event) => setVehicleId(event.target.value)}
+          disabled={disabled}
           className='rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
         >
           <option value=''>All Vehicles</option>
@@ -85,6 +87,7 @@ export function TelemetryFilters({ vehicles, devices, onChange, initialFilters }
         <select
           value={dateRange}
           onChange={(event) => setDateRange(event.target.value as TelemetryDateRange)}
+          disabled={disabled}
           className='rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
         >
           <option value='today'>Today</option>
@@ -96,6 +99,7 @@ export function TelemetryFilters({ vehicles, devices, onChange, initialFilters }
         <select
           value={deviceId}
           onChange={(event) => setDeviceId(event.target.value)}
+          disabled={disabled}
           className='rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
         >
           <option value=''>All Devices</option>
@@ -109,6 +113,7 @@ export function TelemetryFilters({ vehicles, devices, onChange, initialFilters }
         <select
           value={ignition}
           onChange={(event) => setIgnition(event.target.value as IgnitionOption)}
+          disabled={disabled}
           className='rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
         >
           <option value='all'>All</option>
@@ -120,7 +125,7 @@ export function TelemetryFilters({ vehicles, devices, onChange, initialFilters }
           type='date'
           value={startDate}
           onChange={(event) => setStartDate(event.target.value)}
-          disabled={dateRange !== 'custom'}
+          disabled={disabled || dateRange !== 'custom'}
           className='rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
         />
 
@@ -128,7 +133,7 @@ export function TelemetryFilters({ vehicles, devices, onChange, initialFilters }
           type='date'
           value={endDate}
           onChange={(event) => setEndDate(event.target.value)}
-          disabled={dateRange !== 'custom'}
+          disabled={disabled || dateRange !== 'custom'}
           className='rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
         />
       </div>

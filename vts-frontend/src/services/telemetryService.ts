@@ -18,6 +18,16 @@ class TelemetryService {
   async getTelemetryByVehicle(vehicleId: string): Promise<TelemetryRecord[]> {
     return this.getTelemetry({ vehicleId })
   }
+
+  async getLatestTelemetryByVehicle(vehicleId: string): Promise<TelemetryRecord | null> {
+    const rows = await this.getTelemetryByVehicle(vehicleId)
+
+    if (!rows.length) {
+      return null
+    }
+
+    return [...rows].sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())[0]
+  }
 }
 
 export const telemetryService = new TelemetryService()

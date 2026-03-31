@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { FiPlus } from 'react-icons/fi'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Pagination } from '@components/ui/Pagination'
 import { AddVehicleModal } from '@components/vehicles/AddVehicleModal'
 import { VehicleCard } from '@components/vehicles/VehicleCard'
+import { useVehicleSocket } from '@hooks/useVehicleSocket'
 import { vehicleService } from '@services/vehicleService'
 import { useAuthStore } from '@store/authStore'
+import { mergeVehicleSocketPayload } from '@utils/vehicleRealtime'
 import { canCreate } from '@utils/permissions'
 import type { Vehicle, VehicleStatus } from '../../types/vehicle'
 
@@ -24,6 +26,7 @@ export function VehiclesPage() {
   const [total, setTotal] = useState(0)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const refreshTimeoutRef = useRef<number | null>(null)
 
   const initialStatusFilter = useMemo<'all' | VehicleStatus>(() => {
     const status = searchParams.get('status')
@@ -40,8 +43,10 @@ export function VehiclesPage() {
     setStatusFilter(initialStatusFilter)
   }, [initialStatusFilter])
 
-  const loadVehicles = async () => {
-    setIsLoading(true)
+  const loadVehicles = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setIsLoading(true)
+    }
     try {
       const response = await vehicleService.getVehiclesPage({
         page,
@@ -52,13 +57,36 @@ export function VehiclesPage() {
       setVehicles(response.data)
       setTotal(response.total)
     } finally {
-      setIsLoading(false)
+      if (showLoading) {
+        setIsLoading(false)
+      }
     }
-  }
+  }, [limit, page, search, statusFilter])
 
   useEffect(() => {
     void loadVehicles()
-  }, [limit, page, search, statusFilter])
+  }, [loadVehicles])
+
+  useVehicleSocket((payload) => {
+    setVehicles((currentVehicles) => mergeVehicleSocketPayload(currentVehicles, payload))
+
+    if (refreshTimeoutRef.current) {
+      window.clearTimeout(refreshTimeoutRef.current)
+    }
+
+    refreshTimeoutRef.current = window.setTimeout(() => {
+      void loadVehicles(false)
+      refreshTimeoutRef.current = null
+    }, 500)
+  })
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        window.clearTimeout(refreshTimeoutRef.current)
+      }
+    }
+  }, [])
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-5'>

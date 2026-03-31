@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { NotificationFilters, type NotificationFilterOption } from '@components/notifications/NotificationFilters'
 import { NotificationsList } from '@components/notifications/NotificationsList'
 import { Pagination } from '@components/ui/Pagination'
 import { notificationService } from '@services/notificationService'
+import { socketService } from '@services/socketService'
 import { useNotificationStore } from '@store/notificationStore'
 import type { Notification } from '../../types/notification'
 
@@ -19,8 +20,30 @@ export function NotificationsPage() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [total, setTotal] = useState(0)
+  const refreshTimeoutRef = useRef<number | null>(null)
 
-  const reloadNotificationsPage = async () => {
+  const notificationMatchesView = useCallback(
+    (notification: Notification) => {
+      const matchesType = filter === 'all' || notification.type === filter
+      const normalizedSearch = search.trim().toLowerCase()
+
+      if (!normalizedSearch) {
+        return matchesType
+      }
+
+      const haystacks = [
+        notification.vehicleName,
+        notification.message,
+        notification.routeName ?? '',
+        notification.location,
+      ]
+
+      return matchesType && haystacks.some((value) => value.toLowerCase().includes(normalizedSearch))
+    },
+    [filter, search],
+  )
+
+  const reloadNotificationsPage = useCallback(async () => {
     const response = await notificationService.getNotificationsPage({
       page,
       limit,
@@ -29,7 +52,7 @@ export function NotificationsPage() {
     })
     setNotifications(response.data)
     setTotal(response.total)
-  }
+  }, [filter, limit, page, search])
 
   useEffect(() => {
     if (isLoaded) {
@@ -49,7 +72,41 @@ export function NotificationsPage() {
     }
 
     void loadPage()
-  }, [filter, limit, page, search])
+  }, [reloadNotificationsPage])
+
+  useEffect(() => {
+    const unsubscribe = socketService.subscribeToNotifications((notification) => {
+      const matchesView = notificationMatchesView(notification)
+
+      if (page === 1 && matchesView) {
+        setNotifications((currentNotifications) => {
+          const alreadyExists = currentNotifications.some((item) => item.id === notification.id)
+          const withoutDuplicate = currentNotifications.filter((item) => item.id !== notification.id)
+          if (!alreadyExists) {
+            setTotal((currentTotal) => currentTotal + 1)
+          }
+          return [notification, ...withoutDuplicate].slice(0, limit)
+        })
+      }
+
+      if (refreshTimeoutRef.current) {
+        window.clearTimeout(refreshTimeoutRef.current)
+      }
+
+      refreshTimeoutRef.current = window.setTimeout(() => {
+        void reloadNotificationsPage()
+        refreshTimeoutRef.current = null
+      }, 400)
+    })
+
+    return () => {
+      unsubscribe()
+
+      if (refreshTimeoutRef.current) {
+        window.clearTimeout(refreshTimeoutRef.current)
+      }
+    }
+  }, [limit, notificationMatchesView, page, reloadNotificationsPage])
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-5'>

@@ -6,20 +6,14 @@ import { DashboardLayout } from '@components/layout/DashboardLayout'
 import { StatCard } from '@components/ui/StatCard'
 import { WelcomeCard } from '@components/ui/WelcomeCard'
 import { collegeService, type CollegeOption } from '@services/collegeService'
+import { socketService } from '@services/socketService'
 import { useAuthStore } from '@store/authStore'
 import { useCollegeFilterStore } from '@store/collegeFilterStore'
+import { deriveVehicleStatusCounts, mergeVehicleSocketPayload } from '@utils/vehicleRealtime'
 import { useNavigate } from 'react-router-dom'
 import { vehicleService } from '@services/vehicleService'
 import { notificationService } from '@services/notificationService'
-import type { VehicleStatusCounts } from '../../types/vehicle'
-
-const EMPTY_COUNTS: VehicleStatusCounts = {
-  total: 0,
-  moving: 0,
-  idling: 0,
-  offline: 0,
-  stopped: 0,
-}
+import type { Vehicle } from '../../types/vehicle'
 
 type ActivityItem = {
   id: string
@@ -82,14 +76,12 @@ export function DashboardPage() {
   const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
   const setSelectedCollegeId = useCollegeFilterStore((state) => state.setSelectedCollegeId)
 
-  const [counts, setCounts] = useState<VehicleStatusCounts>(EMPTY_COUNTS)
+  const [fleet, setFleet] = useState<Vehicle[]>([])
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [colleges, setColleges] = useState<CollegeOption[]>([])
   const [isLoadingColleges, setIsLoadingColleges] = useState(false)
 
   const isSuperAdmin = role === 'SUPER_ADMIN'
-
-  const stoppedCount = useMemo(() => counts.stopped ?? 0, [counts])
 
   useEffect(() => {
     if (!isSuperAdmin) {
@@ -114,9 +106,9 @@ export function DashboardPage() {
   }, [isSuperAdmin, selectedCollegeId, setSelectedCollegeId])
 
   useEffect(() => {
-    const loadCounts = async () => {
-      const nextCounts = await vehicleService.getStatusCounts()
-      setCounts({ ...nextCounts, stopped: nextCounts.stopped ?? 0 })
+    const loadFleet = async () => {
+      const nextFleet = await vehicleService.getVehicles({ page: 1, limit: 500 })
+      setFleet(nextFleet)
     }
 
     const loadActivities = async () => {
@@ -128,9 +120,30 @@ export function DashboardPage() {
       )
     }
 
-    void loadCounts()
+    void loadFleet()
     void loadActivities()
   }, [selectedCollegeId])
+
+  useEffect(() => {
+    const unsubscribeVehicleUpdates = socketService.subscribeToVehicleUpdates((payload) => {
+      setFleet((currentFleet) => mergeVehicleSocketPayload(currentFleet, payload))
+    })
+
+    const unsubscribeNotifications = socketService.subscribeToNotifications((notification) => {
+      setActivities((currentActivities) => [
+        mapNotificationToActivity(notification),
+        ...currentActivities.filter((item) => item.id !== notification.id),
+      ].slice(0, 10))
+    })
+
+    return () => {
+      unsubscribeVehicleUpdates()
+      unsubscribeNotifications()
+    }
+  }, [])
+
+  const counts = useMemo(() => deriveVehicleStatusCounts(fleet), [fleet])
+  const stoppedCount = useMemo(() => counts.stopped ?? 0, [counts])
 
   const pieData = useMemo(
     () => [

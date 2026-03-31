@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FiEdit, FiTrash2 } from 'react-icons/fi'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { HistoryTable } from '@components/vehicles/HistoryTable'
@@ -9,9 +9,11 @@ import { VehicleEventsTable } from '@components/vehicles/VehicleEventsTable'
 import { EditVehicleModal } from '@components/vehicles/EditVehicleModal'
 import { VehicleInfoCard } from '@components/vehicles/VehicleInfoCard'
 import { VehicleMap } from '@components/map/VehicleMap'
+import { useVehicleSocket } from '@hooks/useVehicleSocket'
 import { vehicleService } from '@services/vehicleService'
 import { routeService } from '@services/routeService'
 import { useAuthStore } from '@store/authStore'
+import { applyVehicleSocketPayload } from '@utils/vehicleRealtime'
 import { canDelete, canEdit } from '@utils/permissions'
 import type { Trip, Vehicle } from '../../types/vehicle'
 
@@ -32,8 +34,9 @@ export function VehicleDetailPage() {
   const [isLoadingVehicle, setIsLoadingVehicle] = useState(true)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const refreshTimeoutRef = useRef<number | null>(null)
 
-  const loadVehicle = useCallback(async () => {
+  const loadVehicle = useCallback(async (showLoading = true) => {
     if (!vehicleId.trim()) {
       setVehicle(null)
       setTrips([])
@@ -41,7 +44,9 @@ export function VehicleDetailPage() {
       return
     }
 
-    setIsLoadingVehicle(true)
+    if (showLoading) {
+      setIsLoadingVehicle(true)
+    }
     const [nextVehicle, nextTrips, routes] = await Promise.all([
       vehicleService.getVehicleById(vehicleId),
       vehicleService.getVehicleTrips(vehicleId),
@@ -52,7 +57,9 @@ export function VehicleDetailPage() {
     setTrips(nextTrips)
     const matchedRoute = nextVehicle?.routeId ? routes.find((route) => route.id === nextVehicle.routeId) : undefined
     setRouteName(matchedRoute?.name ?? 'Unassigned')
-    setIsLoadingVehicle(false)
+    if (showLoading) {
+      setIsLoadingVehicle(false)
+    }
   }, [vehicleId])
 
   useEffect(() => {
@@ -64,6 +71,31 @@ export function VehicleDetailPage() {
       setRouteName('Unassigned')
     }
   }, [vehicleId])
+
+  useVehicleSocket((payload) => {
+    if (payload.vehicleId !== vehicleId) {
+      return
+    }
+
+    setVehicle((currentVehicle) => (currentVehicle ? applyVehicleSocketPayload(currentVehicle, payload) : currentVehicle))
+
+    if (refreshTimeoutRef.current) {
+      window.clearTimeout(refreshTimeoutRef.current)
+    }
+
+    refreshTimeoutRef.current = window.setTimeout(() => {
+      void loadVehicle(false)
+      refreshTimeoutRef.current = null
+    }, 500)
+  })
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        window.clearTimeout(refreshTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const totalDistance = useMemo(
     () => trips.reduce((sum, trip) => sum + trip.distance, 0).toFixed(1),

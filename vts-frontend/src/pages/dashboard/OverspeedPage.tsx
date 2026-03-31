@@ -10,9 +10,11 @@ export function OverspeedPage() {
   const [filters, setFilters] = useState<OverspeedFilterPayload>({ dateRange: 'today' })
   const requestIdRef = useRef(0)
 
-  const loadEvents = useCallback(async () => {
+  const loadEvents = useCallback(async (showLoading = true) => {
     const requestId = ++requestIdRef.current
-    setIsLoading(true)
+    if (showLoading) {
+      setIsLoading(true)
+    }
     try {
       const data = await overspeedService.getOverspeedEvents()
       if (requestId !== requestIdRef.current) {
@@ -20,7 +22,7 @@ export function OverspeedPage() {
       }
       setEvents(data)
     } finally {
-      if (requestId === requestIdRef.current) {
+      if (showLoading && requestId === requestIdRef.current) {
         setIsLoading(false)
       }
     }
@@ -29,7 +31,7 @@ export function OverspeedPage() {
   useEffect(() => {
     void loadEvents()
     const intervalId = window.setInterval(() => {
-      void loadEvents()
+      void loadEvents(false)
     }, 5000)
 
     return () => {
