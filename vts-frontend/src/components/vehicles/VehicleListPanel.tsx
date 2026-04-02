@@ -13,15 +13,14 @@ const statusFilters: VehicleStatus[] = ['moving', 'idling', 'stopped', 'offline'
 
 export function VehicleListPanel({ vehicles, selectedVehicleId, onVehicleSelect }: VehicleListPanelProps) {
   const [search, setSearch] = useState('')
-  const [activeStatuses, setActiveStatuses] = useState<VehicleStatus[]>(statusFilters)
+  const [activeStatus, setActiveStatus] = useState<'all' | VehicleStatus>('all')
 
   const filteredVehicles = useMemo(() => {
     const query = search.trim().toLowerCase()
 
     return vehicles
       .filter((vehicle) => {
-        const matchesStatus =
-          activeStatuses.length === statusFilters.length || activeStatuses.includes(vehicle.status)
+        const matchesStatus = activeStatus === 'all' || vehicle.status === activeStatus
         const matchesSearch =
           vehicle.vehicleName.toLowerCase().includes(query) ||
           vehicle.registrationNumber.toLowerCase().includes(query)
@@ -36,24 +35,7 @@ export function VehicleListPanel({ vehicles, selectedVehicleId, onVehicleSelect 
         }
         return left.registrationNumber.localeCompare(right.registrationNumber, undefined, { sensitivity: 'base' })
       })
-  }, [activeStatuses, search, vehicles])
-
-  const toggleStatus = (status: VehicleStatus) => {
-    setActiveStatuses((current) => {
-      if (current.includes(status)) {
-        const next = current.filter((item) => item !== status)
-        return next.length === 0 ? statusFilters : next
-      }
-
-      return [...current, status]
-    })
-  }
-
-  const isAllSelected = activeStatuses.length === statusFilters.length
-
-  const toggleAll = () => {
-    setActiveStatuses(statusFilters)
-  }
+  }, [activeStatus, search, vehicles])
 
   return (
     <section className='flex lg:h-full lg:min-h-[420px] flex-col rounded-2xl border border-white/30 bg-white/55 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
@@ -75,9 +57,9 @@ export function VehicleListPanel({ vehicles, selectedVehicleId, onVehicleSelect 
         <button
           key='all'
           type='button'
-          onClick={() => toggleAll()}
+          onClick={() => setActiveStatus('all')}
           className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-            isAllSelected
+            activeStatus === 'all'
               ? 'bg-blue-600 text-white dark:bg-[#38bdf8] dark:text-slate-950'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
           }`}
@@ -85,13 +67,13 @@ export function VehicleListPanel({ vehicles, selectedVehicleId, onVehicleSelect 
           All
         </button>
         {statusFilters.map((status) => {
-          const active = isAllSelected ? false : activeStatuses.includes(status)
+          const active = activeStatus === status
 
           return (
             <button
               key={status}
               type='button'
-              onClick={() => toggleStatus(status)}
+              onClick={() => setActiveStatus(status)}
               className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition ${
                 active
                   ? 'bg-blue-600 text-white dark:bg-[#38bdf8] dark:text-slate-950'

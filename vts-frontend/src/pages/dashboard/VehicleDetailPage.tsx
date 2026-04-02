@@ -196,7 +196,7 @@ export function VehicleDetailPage() {
           <section className='rounded-2xl border border-white/30 bg-white/55 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
             <h3 className='mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100'>Live Position</h3>
             <div className='h-[420px] overflow-hidden rounded-xl border border-slate-200/70 dark:border-slate-700'>
-              <VehicleMap vehicles={[vehicle]} center={mapCenter} zoom={15} />
+              <VehicleMap vehicles={[vehicle]} center={mapCenter} zoom={15} preserveZoomOnCenterChange />
             </div>
           </section>
 

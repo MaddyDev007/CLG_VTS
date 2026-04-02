@@ -15,11 +15,13 @@ type VehicleMapProps = {
   selectedVehicleId?: string | null
   geofences?: Geofence[]
   routes?: Route[]
+  preserveZoomOnCenterChange?: boolean
 }
 
 type MapViewUpdaterProps = {
   center: [number, number]
   zoom: number
+  preserveZoomOnCenterChange?: boolean
 }
 
 function markerColor(status: Vehicle['status']): string {
@@ -60,12 +62,20 @@ function MapResizeHandler() {
   return null
 }
 
-function MapViewUpdater({ center, zoom }: MapViewUpdaterProps) {
+function MapViewUpdater({ center, zoom, preserveZoomOnCenterChange = false }: MapViewUpdaterProps) {
   const map = useMap()
+  const hasAppliedInitialView = useRef(false)
 
   useEffect(() => {
-    map.setView(center, zoom, { animate: true })
-  }, [center, map, zoom])
+    if (!hasAppliedInitialView.current) {
+      map.setView(center, zoom, { animate: true })
+      hasAppliedInitialView.current = true
+      return
+    }
+
+    const nextZoom = preserveZoomOnCenterChange ? map.getZoom() : zoom
+    map.setView(center, nextZoom, { animate: true })
+  }, [center, map, preserveZoomOnCenterChange, zoom])
 
   return null
 }
@@ -78,6 +88,7 @@ export function VehicleMap({
   selectedVehicleId,
   geofences = [],
   routes = [],
+  preserveZoomOnCenterChange = false,
 }: VehicleMapProps) {
   const markerRefs = useRef<Map<string, LeafletMarker>>(new Map())
   const lastOpenId = useRef<string | null>(null)
@@ -107,7 +118,7 @@ export function VehicleMap({
         touchZoom
       >
         <MapResizeHandler />
-        <MapViewUpdater center={center} zoom={zoom} />
+        <MapViewUpdater center={center} zoom={zoom} preserveZoomOnCenterChange={preserveZoomOnCenterChange} />
         <LayersControl position='topright'>
           <LayersControl.BaseLayer name='OpenStreetMap'>
             <TileLayer
