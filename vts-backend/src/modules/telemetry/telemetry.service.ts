@@ -250,6 +250,8 @@ export class TelemetryService {
     const timestamp = payload.timestamp ? new Date(payload.timestamp) : new Date()
     const speed = Number(payload.speed)
     const ignition = Boolean(payload.ignition)
+    const battery = Number(payload.battery ?? 0)
+    const signal = Number(payload.signal ?? 0)
 
     const baseRecord = {
       collegeId: vehicle.collegeId,
@@ -262,8 +264,8 @@ export class TelemetryService {
       address: '',
       speed,
       ignition,
-      battery: 0,
-      signal: 0,
+      battery,
+      signal,
     }
 
     const resolvedAddress = await this.resolveAddress(baseRecord.vehicleId, baseRecord.lat, baseRecord.lon, baseRecord.address)

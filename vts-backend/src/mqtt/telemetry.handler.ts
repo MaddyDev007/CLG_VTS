@@ -397,14 +397,34 @@ export class TelemetryHandler {
       if (!state.idleActive && idleStartAt) {
         const idleDurationMs = record.timestamp.getTime() - idleStartAt.getTime()
         if (idleDurationMs >= this.idleThresholdMs) {
+          const created = await this.eventsService.createIdling({
+            collegeId,
+            vehicleId,
+            vehicleName,
+            tripId: state.activeTripId ?? '',
+            durationMs: idleDurationMs,
+            startTime: idleStartAt,
+            endTime: record.timestamp,
+            location: state.idleStartLocation ?? resolvedLocation,
+            lat: state.idleStartLat ?? record.lat,
+            lon: state.idleStartLon ?? record.lon,
+          })
           state.idleActive = true
+          state.idleEventId = created.id
           this.logger.debug(
-            `idle_started vehicleId=${vehicleId} startTime=${idleStartAt.toISOString()}`,
+            `idle_started vehicleId=${vehicleId} eventId=${created.id} startTime=${idleStartAt.toISOString()} durationMs=${idleDurationMs}`,
           )
         }
+      } else if (state.idleActive && idleStartAt && state.idleEventId) {
+        const idleDurationMs = record.timestamp.getTime() - idleStartAt.getTime()
+        await this.eventsService.updateIdling(state.idleEventId, {
+          endTime: record.timestamp,
+          durationMs: idleDurationMs,
+        })
       }
     } else if (!state.idleActive) {
       state.idleStartAt = null
+      state.idleEventId = null
       state.idleStartLocation = null
       state.idleStartLat = null
       state.idleStartLon = null
@@ -415,18 +435,26 @@ export class TelemetryHandler {
       const endTime = record.timestamp
       if (startTime) {
         const durationMs = diffMs(startTime, endTime)
-        await this.eventsService.createIdling({
-          collegeId,
-          vehicleId,
-          vehicleName,
-          tripId: state.activeTripId ?? '',
-          durationMs,
-          startTime,
-          endTime,
-          location: state.idleStartLocation ?? resolvedLocation,
-          lat: state.idleStartLat ?? record.lat,
-          lon: state.idleStartLon ?? record.lon,
-        })
+        if (state.idleEventId) {
+          await this.eventsService.updateIdling(state.idleEventId, {
+            endTime,
+            durationMs,
+          })
+        } else {
+          const created = await this.eventsService.createIdling({
+            collegeId,
+            vehicleId,
+            vehicleName,
+            tripId: state.activeTripId ?? '',
+            durationMs,
+            startTime,
+            endTime,
+            location: state.idleStartLocation ?? resolvedLocation,
+            lat: state.idleStartLat ?? record.lat,
+            lon: state.idleStartLon ?? record.lon,
+          })
+          state.idleEventId = created.id
+        }
         this.logger.debug(
           `idle_ended vehicleId=${vehicleId} startTime=${startTime.toISOString()} endTime=${endTime.toISOString()} durationMs=${durationMs}`,
         )
@@ -434,6 +462,7 @@ export class TelemetryHandler {
 
       state.idleActive = false
       state.idleStartAt = null
+      state.idleEventId = null
       state.idleStartLocation = null
       state.idleStartLat = null
       state.idleStartLon = null
@@ -448,6 +477,7 @@ export class TelemetryHandler {
       !state.tripPendingClose &&
       !state.idleActive &&
       !state.idleStartAt &&
+      !state.idleEventId &&
       !state.overspeedActive &&
       !state.overspeedEventId
     ) {

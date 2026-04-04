@@ -18,6 +18,21 @@ export class CreateTelemetryDto {
   @IsNumber()
   speed!: number
 
+  @ApiPropertyOptional({ example: 4100, description: 'Battery voltage in millivolts' })
+  @IsOptional()
+  @IsNumber()
+  battery?: number
+
+  @ApiPropertyOptional({ example: -75, description: 'Signal strength in dBm' })
+  @IsOptional()
+  @IsNumber()
+  signal?: number
+
+  @ApiPropertyOptional({ example: 120, description: 'Heading in degrees' })
+  @IsOptional()
+  @IsNumber()
+  heading?: number
+
   @ApiProperty({ example: true, description: 'Ignition status' })
   @IsBoolean()
   ignition!: boolean

@@ -199,4 +199,18 @@ export class EventsService {
     })
     return saved
   }
+
+  async updateIdling(
+    id: string,
+    payload: Partial<Pick<IdlingEvent, 'endTime' | 'lat' | 'lon' | 'location'> & { durationMs?: number }>,
+  ) {
+    const { durationMs, ...rest } = payload
+    const next = {
+      ...rest,
+      duration: typeof durationMs === 'number' ? msToSeconds(durationMs) : undefined,
+      location: rest.location !== undefined ? this.resolveLocation(rest.location) : undefined,
+    }
+
+    await this.idlingRepo.update({ id }, next)
+  }
 }

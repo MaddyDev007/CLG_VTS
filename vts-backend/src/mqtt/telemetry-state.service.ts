@@ -11,6 +11,7 @@ export type VehicleRuntimeState = {
   tripCloseTimestamp?: string | null
   idleStartAt?: string | null
   idleActive?: boolean
+  idleEventId?: string | null
   idleStartLocation?: string | null
   idleStartLat?: number | null
   idleStartLon?: number | null

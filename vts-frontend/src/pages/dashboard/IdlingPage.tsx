@@ -9,6 +9,7 @@ export function IdlingPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState<IdlingFilterPayload>({ dateRange: 'today' })
   const requestIdRef = useRef(0)
+  const intervalRef = useRef<number | null>(null)
 
   const loadEvents = useCallback(async () => {
     const requestId = ++requestIdRef.current
@@ -28,6 +29,18 @@ export function IdlingPage() {
 
   useEffect(() => {
     void loadEvents()
+  }, [loadEvents])
+
+  useEffect(() => {
+    intervalRef.current = window.setInterval(() => {
+      void loadEvents()
+    }, 15000)
+
+    return () => {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current)
+      }
+    }
   }, [loadEvents])
 
   const handleFiltersChange = useCallback((nextFilters: IdlingFilterPayload) => {

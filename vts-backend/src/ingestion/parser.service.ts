@@ -8,6 +8,10 @@ type RawTelemetryPayload = {
   lng?: unknown
   lon?: unknown
   speed?: unknown
+  speed_kmph?: unknown
+  battery_mv?: unknown
+  signal_dbm?: unknown
+  heading?: unknown
   ignition?: unknown
   timestamp?: unknown
 }
@@ -35,7 +39,10 @@ export class ParserService {
     const deviceId = this.asTrimmedString(parsed.deviceId ?? parsed.device_id)
     const lat = this.asNumber(parsed.lat)
     const lon = this.asNumber(parsed.lng ?? parsed.lon)
-    const speed = this.asNumber(parsed.speed)
+    const speed = this.asNumber(parsed.speed ?? parsed.speed_kmph)
+    const battery = this.asOptionalNumber(parsed.battery_mv)
+    const signal = this.asOptionalNumber(parsed.signal_dbm)
+    const heading = this.asOptionalNumber(parsed.heading)
     const ignition = typeof parsed.ignition === 'boolean' ? parsed.ignition : true
     const timestamp = this.normalizeTimestamp(parsed.timestamp)
 
@@ -59,6 +66,9 @@ export class ParserService {
       lat,
       lon,
       speed,
+      ...(battery !== undefined ? { battery } : {}),
+      ...(signal !== undefined ? { signal } : {}),
+      ...(heading !== undefined ? { heading } : {}),
       ignition,
       ...(timestamp ? { timestamp } : {}),
     }
@@ -88,6 +98,15 @@ export class ParserService {
     }
 
     return Number.NaN
+  }
+
+  private asOptionalNumber(value: unknown): number | undefined {
+    if (value === null || value === undefined || value === '') {
+      return undefined
+    }
+
+    const parsed = this.asNumber(value)
+    return Number.isFinite(parsed) ? parsed : undefined
   }
 
   private normalizeTimestamp(value: unknown): string | undefined {
