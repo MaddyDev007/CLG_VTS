@@ -2,6 +2,35 @@ import axios from 'axios';
 
 const DEVICE_SIMULATOR_URL_STORAGE_KEY = 'deviceSimulatorUrl';
 
+export type TransportProtocol = 'mqtt' | 'tcp' | 'udp';
+
+export type BridgeHealth = {
+  ok: boolean;
+  defaultProtocol: TransportProtocol;
+  transports: {
+    mqtt: {
+      brokerUrl: string;
+      connected: boolean;
+    };
+    tcp: {
+      host: string;
+      port: number;
+    };
+    udp: {
+      host: string;
+      port: number;
+    };
+  };
+};
+
+export type PublishTelemetryRequest = {
+  protocol: TransportProtocol;
+  payload: unknown;
+  topic?: string;
+  host?: string;
+  port?: number;
+};
+
 function defaultDeviceSimulatorUrl() {
   const saved = localStorage.getItem(DEVICE_SIMULATOR_URL_STORAGE_KEY);
   if (saved && saved.trim().length > 0) {
@@ -29,6 +58,10 @@ export async function getAssignedDevices() {
   return deviceSimulatorApi.get('/devices');
 }
 
-export async function publishTelemetry(topic: string, payload: unknown) {
-  return deviceSimulatorApi.post('/publish', { topic, payload });
+export async function getBridgeHealth() {
+  return deviceSimulatorApi.get<BridgeHealth>('/health');
+}
+
+export async function publishTelemetry(request: PublishTelemetryRequest) {
+  return deviceSimulatorApi.post('/publish', request);
 }

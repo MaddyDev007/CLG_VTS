@@ -3,13 +3,26 @@ require('dotenv').config()
 const cors = require('cors')
 const express = require('express')
 const { loadAssignedDevices } = require('./db')
-const { createMqttClient, MQTT_BROKER_URL } = require('./mqttClient')
+const {
+  createMqttClient,
+  createTransportSender,
+  DEFAULT_PROTOCOL,
+  MQTT_BROKER_URL,
+  TCP_HOST,
+  TCP_PORT,
+  UDP_HOST,
+  UDP_PORT,
+} = require('./transport')
 
 const BRIDGE_PORT = Number(process.env.SIM_BRIDGE_PORT || 3011)
 
 function createBridgeServer() {
   const app = express()
   const { client } = createMqttClient()
+  const mqttTransportSender = createTransportSender({
+    protocol: 'mqtt',
+    mqttClient: client,
+  })
 
   app.use(cors())
   app.use(express.json())
@@ -17,8 +30,21 @@ function createBridgeServer() {
   app.get('/health', (_request, response) => {
     response.json({
       ok: true,
-      mqttBrokerUrl: MQTT_BROKER_URL,
-      mqttConnected: client.connected,
+      defaultProtocol: DEFAULT_PROTOCOL,
+      transports: {
+        mqtt: {
+          brokerUrl: MQTT_BROKER_URL,
+          connected: client.connected,
+        },
+        tcp: {
+          host: TCP_HOST,
+          port: TCP_PORT,
+        },
+        udp: {
+          host: UDP_HOST,
+          port: UDP_PORT,
+        },
+      },
     })
   })
 
@@ -32,26 +58,29 @@ function createBridgeServer() {
   })
 
   app.post('/publish', async (request, response) => {
-    const { topic, payload } = request.body || {}
+    const { protocol = DEFAULT_PROTOCOL, topic, host, port, payload } = request.body || {}
 
-    if (!topic || !payload) {
-      response.status(400).json({ message: 'topic and payload are required' })
+    if (!payload) {
+      response.status(400).json({ message: 'payload is required' })
       return
     }
 
-    if (!client.connected) {
-      response.status(503).json({ message: `MQTT broker not connected at ${MQTT_BROKER_URL}` })
-      return
-    }
+    try {
+      const sender =
+        protocol === 'mqtt'
+          ? mqttTransportSender
+          : createTransportSender({ protocol })
 
-    client.publish(topic, JSON.stringify(payload), { qos: 0 }, (error) => {
-      if (error) {
-        response.status(500).json({ message: error.message })
+      const result = await sender.send({ payload, topic, host, port })
+      response.json({ success: true, ...result })
+    } catch (error) {
+      const message = error.message || 'Publish failed'
+      if (protocol === 'mqtt' && !client.connected) {
+        response.status(503).json({ message })
         return
       }
-
-      response.json({ success: true })
-    })
+      response.status(500).json({ message })
+    }
   })
 
   client.on('connect', () => {

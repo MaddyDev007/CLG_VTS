@@ -1,9 +1,18 @@
-const mqtt = require('mqtt')
+const {
+  createMqttClient,
+  createTransportSender,
+  DEFAULT_PROTOCOL,
+  MQTT_BROKER_URL,
+  TCP_HOST,
+  TCP_PORT,
+  UDP_HOST,
+  UDP_PORT,
+} = require('./src/transport')
 
-const MQTT_URL = process.env.SIM_MQTT_URL || 'mqtt://localhost:1883'
 const INTERVAL_MS = Number(process.env.SIM_INTERVAL_MS || 5000)
 const BASE_LAT = Number(process.env.SIM_BASE_LAT || 11.2588)
 const BASE_LON = Number(process.env.SIM_BASE_LON || 75.7804)
+const TRANSPORT_PROTOCOL = DEFAULT_PROTOCOL
 const DEVICE_IDS = (process.env.SIM_DEVICE_IDS || 'VTU_001,VTU_002,VTU_003')
   .split(',')
   .map((id) => id.trim())
@@ -33,19 +42,42 @@ function buildPayload(deviceId, index) {
   }
 }
 
-function startPublishing(client) {
+function logTransportTarget() {
+  if (TRANSPORT_PROTOCOL === 'mqtt') {
+    console.log(`Transport: MQTT -> ${MQTT_BROKER_URL}`)
+    return
+  }
+
+  if (TRANSPORT_PROTOCOL === 'tcp') {
+    console.log(`Transport: TCP -> ${TCP_HOST}:${TCP_PORT}`)
+    return
+  }
+
+  if (TRANSPORT_PROTOCOL === 'udp') {
+    console.log(`Transport: UDP -> ${UDP_HOST}:${UDP_PORT}`)
+  }
+}
+
+function startPublishing(sender) {
   DEVICE_IDS.forEach((deviceId, index) => {
-    const topic = `vts/${deviceId}/telemetry`
+    const topic = `vts/devices/${deviceId}/telemetry`
 
     const publishOnce = () => {
       const payload = buildPayload(deviceId, index)
-      client.publish(topic, JSON.stringify(payload), { qos: 0 }, (err) => {
-        if (err) {
+      sender
+        .send({ payload, topic })
+        .then((result) => {
+          const destination =
+            result.protocol === 'mqtt'
+              ? result.topic
+              : `${result.host}:${result.port}`
+          console.log(
+            `[SIM] ${deviceId} ${result.protocol.toUpperCase()} -> ${destination} ${payload.lat}, ${payload.lon}, speed=${payload.speed_kmph}`
+          )
+        })
+        .catch((err) => {
           console.error(`[SIM] ${deviceId} publish failed: ${err.message}`)
-          return
-        }
-        console.log(`[SIM] ${deviceId} -> ${payload.lat}, ${payload.lon}, speed=${payload.speed_kmph}`)
-      })
+        })
     }
 
     publishOnce()
@@ -59,21 +91,37 @@ function start() {
     process.exit(1)
   }
 
-  console.log(`Connecting to MQTT: ${MQTT_URL}`)
-  const client = mqtt.connect(MQTT_URL, { reconnectPeriod: 2000 })
+  logTransportTarget()
 
-  client.on('connect', () => {
-    console.log('MQTT connected. Publishing telemetry...')
-    startPublishing(client)
-  })
+  if (TRANSPORT_PROTOCOL === 'mqtt') {
+    const { client } = createMqttClient()
 
-  client.on('reconnect', () => {
-    console.log('MQTT reconnecting...')
-  })
+    client.on('connect', () => {
+      console.log('MQTT connected. Publishing telemetry...')
+      startPublishing(
+        createTransportSender({
+          protocol: TRANSPORT_PROTOCOL,
+          mqttClient: client,
+        })
+      )
+    })
 
-  client.on('error', (err) => {
-    console.error(`MQTT error: ${err.message}`)
-  })
+    client.on('reconnect', () => {
+      console.log('MQTT reconnecting...')
+    })
+
+    client.on('error', (err) => {
+      console.error(`MQTT error: ${err.message}`)
+    })
+
+    return
+  }
+
+  startPublishing(
+    createTransportSender({
+      protocol: TRANSPORT_PROTOCOL,
+    })
+  )
 }
 
 start()

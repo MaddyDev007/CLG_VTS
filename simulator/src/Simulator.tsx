@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import {
+  getBridgeHealth,
   getAssignedDevices,
   getDeviceSimulatorUrl,
   publishTelemetry,
   setDeviceSimulatorUrl,
+  type TransportProtocol,
 } from './services/api';
 
 type SimulatorState = {
@@ -19,6 +21,23 @@ type SimulatorState = {
   batteryMv: number;
   signalDbm: number;
   intervalMs: number;
+};
+
+type TransportState = {
+  protocol: TransportProtocol;
+  host: string;
+  port: number;
+};
+
+type TransportDefaults = {
+  tcp: {
+    host: string;
+    port: number;
+  };
+  udp: {
+    host: string;
+    port: number;
+  };
 };
 
 const defaultState: SimulatorState = {
@@ -52,6 +71,21 @@ export default function Simulator() {
   const [searchError, setSearchError] = useState('');
   const [deviceError, setDeviceError] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [transport, setTransport] = useState<TransportState>({
+    protocol: 'mqtt',
+    host: '127.0.0.1',
+    port: 4001,
+  });
+  const [transportDefaults, setTransportDefaults] = useState<TransportDefaults>({
+    tcp: {
+      host: '127.0.0.1',
+      port: 4001,
+    },
+    udp: {
+      host: '127.0.0.1',
+      port: 4002,
+    },
+  });
   const timerRef = useRef<number | null>(null);
   const keysRef = useRef({
     up: false,
@@ -60,8 +94,10 @@ export default function Simulator() {
     right: false,
   });
   const lastFrameRef = useRef<number | null>(null);
-  const [mqttStatus, setMqttStatus] = useState<'idle' | 'ready' | 'disconnected'>('ready');
-  const [mqttError, setMqttError] = useState('');
+  const [publisherStatus, setPublisherStatus] = useState<'idle' | 'ready' | 'disconnected'>('idle');
+  const [publisherError, setPublisherError] = useState('');
+  const [mqttConnected, setMqttConnected] = useState(false);
+  const [mqttBrokerUrl, setMqttBrokerUrl] = useState('mqtt://localhost:1883');
   const [stage, setStage] = useState<'setup' | 'game'>('setup');
   const drivingRef = useRef(false);
   const sendingRef = useRef(false);
@@ -73,6 +109,13 @@ export default function Simulator() {
         : `${MQTT_TOPIC_PREFIX}/devices/{device_id}/telemetry`,
     [state.deviceId],
   );
+  const transportSummary = useMemo(() => {
+    if (transport.protocol === 'mqtt') {
+      return telemetryTopic;
+    }
+
+    return `${transport.host}:${transport.port}`;
+  }, [telemetryTopic, transport.host, transport.port, transport.protocol]);
 
   const loadDevices = useCallback(async () => {
     try {
@@ -96,14 +139,44 @@ export default function Simulator() {
     }
   }, []);
 
+  const loadBridgeHealth = useCallback(async () => {
+    try {
+      const res = await getBridgeHealth();
+      const health = res.data;
+      setMqttConnected(Boolean(health.transports.mqtt.connected));
+      setMqttBrokerUrl(health.transports.mqtt.brokerUrl);
+      setTransportDefaults({
+        tcp: {
+          host: health.transports.tcp.host,
+          port: health.transports.tcp.port,
+        },
+        udp: {
+          host: health.transports.udp.host,
+          port: health.transports.udp.port,
+        },
+      });
+      setTransport((prev) => ({
+        protocol: prev.protocol,
+        host: prev.protocol === 'udp' ? health.transports.udp.host : health.transports.tcp.host,
+        port: prev.protocol === 'udp' ? health.transports.udp.port : health.transports.tcp.port,
+      }));
+      setPublisherStatus(health.transports.mqtt.connected ? 'ready' : 'idle');
+      setPublisherError('');
+    } catch (_error) {
+      setPublisherStatus('disconnected');
+      setPublisherError('Bridge health check failed.');
+    }
+  }, []);
+
   useEffect(() => {
     loadDevices();
+    void loadBridgeHealth();
     return () => {
       if (timerRef.current) {
         window.clearInterval(timerRef.current);
       }
     };
-  }, [loadDevices]);
+  }, [loadBridgeHealth, loadDevices]);
 
   useEffect(() => {
     stateRef.current = state;
@@ -124,10 +197,9 @@ export default function Simulator() {
     setLog((prev) => [message, ...prev].slice(0, 30));
   };
 
-  const refreshBridge = () => {
+  const refreshBridge = async () => {
     setDeviceSimulatorUrl(deviceSimulatorUrl);
-    setMqttStatus('ready');
-    setMqttError('');
+    await loadBridgeHealth();
   };
 
   const canEnterGame = Boolean(state.deviceId.trim());
@@ -191,17 +263,31 @@ export default function Simulator() {
       ignition: snapshot.ignitionOn,
     };
     try {
-      await publishTelemetry(`${MQTT_TOPIC_PREFIX}/devices/${snapshot.deviceId}/telemetry`, payload);
-      setMqttStatus('ready');
-      setMqttError('');
-      pushLog(`MQTT sent: ${payload.device_id} -> ${telemetryTopic}`);
+      await publishTelemetry(
+        transport.protocol === 'mqtt'
+          ? {
+              protocol: 'mqtt',
+              topic: `${MQTT_TOPIC_PREFIX}/devices/${snapshot.deviceId}/telemetry`,
+              payload,
+            }
+          : {
+              protocol: transport.protocol,
+              host: transport.host,
+              port: Number(transport.port),
+              payload,
+            },
+      );
+      setPublisherStatus('ready');
+      setPublisherError('');
+      pushLog(`${transport.protocol.toUpperCase()} sent: ${payload.device_id} -> ${transportSummary}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'MQTT send failed.';
-      setMqttStatus('disconnected');
-      setMqttError(message);
+      const message =
+        error instanceof Error ? error.message : `${transport.protocol.toUpperCase()} send failed.`;
+      setPublisherStatus('disconnected');
+      setPublisherError(message);
       pushLog(message);
     }
-  }, [telemetryTopic]);
+  }, [transport, transportSummary]);
 
   const startSending = () => {
     if (sendingRef.current) return;
@@ -355,14 +441,20 @@ export default function Simulator() {
           <div className="glass card-glow rounded-2xl p-5">
             <h2 className="text-2xl font-semibold">Drive Setup</h2>
             <p className="text-sm text-[var(--muted)]">
-              Pick a real assigned device, choose the start point, and drive. `vts-device-simulator` reads the devices from your DB and publishes the UI-generated telemetry to MQTT.
+              Pick a real assigned device, choose the start point, and drive. `vts-device-simulator`
+              {' '}reads the devices from your DB and publishes the UI-generated telemetry over MQTT,
+              {' '}TCP, or UDP.
             </p>
             <p className="mt-2 text-xs text-[var(--muted)]">
               Publisher:{' '}
               <span className="text-white">
-                {mqttStatus === 'ready' ? 'Ready' : mqttStatus === 'idle' ? 'Idle' : 'Disconnected'}
+                {publisherStatus === 'ready'
+                  ? 'Ready'
+                  : publisherStatus === 'idle'
+                    ? 'Idle'
+                    : 'Disconnected'}
               </span>
-              {mqttError ? ` • ${mqttError}` : ''}
+              {publisherError ? ` • ${publisherError}` : ''}
             </p>
           </div>
 
@@ -385,7 +477,16 @@ export default function Simulator() {
                   <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Publish Path</label>
                   <div className="rounded-xl border border-white/10 bg-[var(--panel)]/60 px-3 py-2 text-sm text-white">
                     <p className="truncate">Bridge: {deviceSimulatorUrl}</p>
-                    <p className="mt-1 truncate text-[var(--muted)]">Topic: {telemetryTopic}</p>
+                    <p className="mt-1 truncate text-[var(--muted)]">
+                      {transport.protocol === 'mqtt'
+                        ? `Topic: ${telemetryTopic}`
+                        : `Destination: ${transportSummary}`}
+                    </p>
+                    {transport.protocol === 'mqtt' ? (
+                      <p className="mt-1 truncate text-[var(--muted)]">
+                        Broker: {mqttBrokerUrl} ({mqttConnected ? 'connected' : 'disconnected'})
+                      </p>
+                    ) : null}
                   </div>
                   <button
                     className="w-fit rounded-xl border border-white/10 px-4 py-2 text-xs text-[var(--muted)] hover:text-white"
@@ -393,7 +494,39 @@ export default function Simulator() {
                   >
                     Refresh Bridge
                   </button>
-                  {mqttError ? <p className="text-xs text-[var(--danger)]">{mqttError}</p> : null}
+                  {publisherError ? <p className="text-xs text-[var(--danger)]">{publisherError}</p> : null}
+                </div>
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                    Transport Protocol
+                  </label>
+                  <select
+                    className="rounded-xl border border-white/10 bg-[var(--panel)] px-3 py-2 text-sm text-white"
+                    value={transport.protocol}
+                    onChange={(e) => {
+                      const protocol = e.target.value as TransportProtocol;
+                      setTransport((prev) => ({
+                        ...prev,
+                        protocol,
+                        host:
+                          protocol === 'udp'
+                            ? transportDefaults.udp.host
+                            : protocol === 'tcp'
+                              ? transportDefaults.tcp.host
+                              : prev.host,
+                        port:
+                          protocol === 'udp'
+                            ? transportDefaults.udp.port
+                            : protocol === 'tcp'
+                              ? transportDefaults.tcp.port
+                              : prev.port,
+                      }));
+                    }}
+                  >
+                    <option value="mqtt">MQTT</option>
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                  </select>
                 </div>
                 <div className="flex flex-col gap-2 md:col-span-2">
                   <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
@@ -420,6 +553,23 @@ export default function Simulator() {
                     ))}
                   </select>
                 </div>
+                {transport.protocol !== 'mqtt' ? (
+                  <>
+                    <input
+                      className="rounded-xl border border-white/10 bg-transparent px-3 py-2 text-sm text-white"
+                      placeholder={`${transport.protocol.toUpperCase()} host`}
+                      value={transport.host}
+                      onChange={(e) => setTransport((prev) => ({ ...prev, host: e.target.value }))}
+                    />
+                    <input
+                      className="rounded-xl border border-white/10 bg-transparent px-3 py-2 text-sm text-white"
+                      type="number"
+                      placeholder={`${transport.protocol.toUpperCase()} port`}
+                      value={transport.port}
+                      onChange={(e) => setTransport((prev) => ({ ...prev, port: Number(e.target.value) }))}
+                    />
+                  </>
+                ) : null}
                 <input
                   className="rounded-xl border border-white/10 bg-transparent px-3 py-2 text-sm text-white"
                   type="number"
@@ -566,7 +716,8 @@ export default function Simulator() {
             <div>
               <h2 className="text-2xl font-semibold">Drive Arena</h2>
               <p className="text-sm text-[var(--muted)]">
-                WASD / Arrow keys to drive. Space = brake. MQTT live stream on.
+                WASD / Arrow keys to drive. Space = brake. {transport.protocol.toUpperCase()} live
+                {' '}stream on.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -653,11 +804,19 @@ export default function Simulator() {
                 <p className="sim-hud-sub">Device: {state.deviceId || '—'}</p>
               </div>
               <div className="sim-hud-card">
-                <p className="sim-hud-label">MQTT</p>
+                <p className="sim-hud-label">{transport.protocol.toUpperCase()}</p>
                 <p className="sim-hud-value">
-                  {mqttStatus === 'ready' ? 'Ready' : mqttStatus === 'idle' ? 'Idle' : 'Disconnected'}
+                  {publisherStatus === 'ready'
+                    ? 'Ready'
+                    : publisherStatus === 'idle'
+                      ? 'Idle'
+                      : 'Disconnected'}
                 </p>
-                <p className="sim-hud-sub">Topic: {telemetryTopic}</p>
+                <p className="sim-hud-sub">
+                  {transport.protocol === 'mqtt'
+                    ? `Topic: ${telemetryTopic}`
+                    : `Destination: ${transportSummary}`}
+                </p>
                 <p className="sim-hud-sub">Bridge: {deviceSimulatorUrl}</p>
               </div>
               <div className="sim-hud-card">

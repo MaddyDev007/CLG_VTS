@@ -1,8 +1,8 @@
 const { VehicleSimulator } = require('./vehicleSimulator')
 
 class DeviceManager {
-  constructor({ mqttClient, intervalMs, mode }) {
-    this.mqttClient = mqttClient
+  constructor({ transportSender, intervalMs, mode }) {
+    this.transportSender = transportSender
     this.intervalMs = intervalMs
     this.mode = mode
     this.simulators = []
@@ -13,7 +13,7 @@ class DeviceManager {
       return new VehicleSimulator({
         deviceId: device.device_id,
         imei: device.imei,
-        mqttClient: this.mqttClient,
+        transportSender: this.transportSender,
         intervalMs: this.intervalMs,
         mode: this.mode,
       })

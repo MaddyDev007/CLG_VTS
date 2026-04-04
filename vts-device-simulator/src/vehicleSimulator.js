@@ -28,10 +28,10 @@ function computeHeading(from, to) {
 }
 
 class VehicleSimulator {
-  constructor({ deviceId, imei, mqttClient, intervalMs, mode, route }) {
+  constructor({ deviceId, imei, transportSender, intervalMs, mode, route }) {
     this.deviceId = deviceId
     this.imei = imei
-    this.mqttClient = mqttClient
+    this.transportSender = transportSender
     this.intervalMs = intervalMs
     this.mode = mode
     this.route = route && route.length ? route : DEFAULT_ROUTE
@@ -65,16 +65,21 @@ class VehicleSimulator {
     const payload = this.buildPayload()
     const topic = `vts/devices/${this.deviceId}/telemetry`
 
-    this.mqttClient.publish(topic, JSON.stringify(payload), { qos: 0 }, (err) => {
-      if (err) {
-        console.error(`[SIM] ${this.deviceId} publish failed: ${err.message}`)
-        return
-      }
+    this.transportSender
+      .send({ payload, topic })
+      .then((result) => {
+        const destination =
+          result.protocol === 'mqtt'
+            ? result.topic
+            : `${result.host}:${result.port}`
 
-      console.log(
-        `[SIM] ${this.deviceId} -> lat:${payload.lat} lon:${payload.lon} speed:${payload.speed_kmph}`
-      )
-    })
+        console.log(
+          `[SIM] ${this.deviceId} ${result.protocol.toUpperCase()} -> ${destination} lat:${payload.lat} lon:${payload.lon} speed:${payload.speed_kmph}`
+        )
+      })
+      .catch((err) => {
+        console.error(`[SIM] ${this.deviceId} publish failed: ${err.message}`)
+      })
   }
 
   updateMovement() {
