@@ -296,4 +296,8 @@ export class TelemetryService {
 
     return record
   }
+
+  async processTelemetry(payload: CreateTelemetryDto): Promise<TelemetryRecord> {
+    return this.ingest(payload)
+  }
 }

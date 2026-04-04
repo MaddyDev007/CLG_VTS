@@ -21,6 +21,7 @@ import { TemporalModule } from './temporal/temporal.module'
 import { CollegeScopeMiddleware } from './common/tenant/college-scope.middleware'
 import { CollegesModule } from './modules/colleges/colleges.module'
 import { RolesGuard } from './common/guards/roles.guard'
+import { IngestionModule } from './ingestion/ingestion.module'
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { RolesGuard } from './common/guards/roles.guard'
     NotificationsModule,
     ProfileModule,
     MqttModule,
+    IngestionModule,
     WebsocketModule,
     TemporalModule,
   ],

@@ -45,6 +45,20 @@ class EnvironmentVariables {
   MQTT_TELEMETRY_TOPIC!: string
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  UDP_PORT?: number
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  TCP_PORT?: number
+
+  @IsOptional()
+  @IsString()
+  TCP_HOST?: string
+
+  @IsOptional()
   @IsString()
   WS_NAMESPACE?: string
 
