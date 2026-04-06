@@ -1,10 +1,10 @@
 import type { Trip, TripPlaybackPoint } from '../types/trip'
 import { apiClient } from '../api/apiClient'
-import { filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
 
 class TripService {
   async getTrips(): Promise<Trip[]> {
-    const trips = await apiClient.get<Trip[]>('/trips')
+    const trips = await apiClient.get<Trip[]>(buildCollegeScopedPath('/trips'))
     return filterByActiveCollege(trips)
   }
 

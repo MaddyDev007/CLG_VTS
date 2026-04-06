@@ -1,17 +1,26 @@
 import type { PropsWithChildren } from 'react'
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { CollegeScopeRequiredNotice } from '@components/colleges/CollegeScopeRequiredNotice'
 import { Sidebar } from '@components/navigation/Sidebar'
 import { Topbar } from '@components/navigation/Topbar'
 import { useNotificationListener } from '@hooks/useNotificationListener'
+import { useAuthStore } from '@store/authStore'
+import { useCollegeFilterStore } from '@store/collegeFilterStore'
 
 export function DashboardLayout({ children }: PropsWithChildren) {
   useNotificationListener()
+  const location = useLocation()
+  const role = useAuthStore((state) => state.role)
+  const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+  const isGlobalAdminRoute = location.pathname.startsWith('/admin/colleges') || location.pathname === '/profile'
+  const shouldRequireCollegeSelection = role === 'SUPER_ADMIN' && !selectedCollegeId && !isGlobalAdminRoute
 
   return (
     <div
-      className={`flex h-screen flex-col overflow-hidden bg-gray-50 text-slate-900 dark:bg-[#0f172a] dark:text-slate-100 md:grid md:grid-rows-[64px_1fr] ${
+      className={`flex h-screen flex-col overflow-hidden bg-gray-50 text-slate-900 dark:bg-[#0f172a] dark:text-slate-100 md:grid md:grid-rows-[auto_1fr] ${
         isSidebarCollapsed ? 'md:grid-cols-[80px_1fr]' : 'md:grid-cols-[260px_1fr]'
       }`}
     >
@@ -24,7 +33,9 @@ export function DashboardLayout({ children }: PropsWithChildren) {
 
       <Topbar onMenuClick={() => setIsMobileSidebarOpen(true)} />
 
-      <main className='overflow-y-auto p-5'>{children}</main>
+      <main className='overflow-y-auto p-5'>
+        {shouldRequireCollegeSelection ? <CollegeScopeRequiredNotice /> : <div key={selectedCollegeId ?? 'global-scope'}>{children}</div>}
+      </main>
 
       {isMobileSidebarOpen ? (
         <>

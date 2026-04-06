@@ -4,10 +4,13 @@ import { NotificationsList } from '@components/notifications/NotificationsList'
 import { Pagination } from '@components/ui/Pagination'
 import { notificationService } from '@services/notificationService'
 import { socketService } from '@services/socketService'
+import { useAuthStore } from '@store/authStore'
 import { useNotificationStore } from '@store/notificationStore'
 import type { Notification } from '../../types/notification'
 
 export function NotificationsPage() {
+  const role = useAuthStore((state) => state.role)
+  const isSuperAdmin = role === 'SUPER_ADMIN'
   const isLoaded = useNotificationStore((state) => state.isLoaded)
   const loadNotifications = useNotificationStore((state) => state.loadNotifications)
   const markAsRead = useNotificationStore((state) => state.markAsRead)
@@ -78,7 +81,7 @@ export function NotificationsPage() {
     const unsubscribe = socketService.subscribeToNotifications((notification) => {
       const matchesView = notificationMatchesView(notification)
 
-      if (page === 1 && matchesView) {
+      if (!isSuperAdmin && page === 1 && matchesView) {
         setNotifications((currentNotifications) => {
           const alreadyExists = currentNotifications.some((item) => item.id === notification.id)
           const withoutDuplicate = currentNotifications.filter((item) => item.id !== notification.id)
@@ -106,7 +109,7 @@ export function NotificationsPage() {
         window.clearTimeout(refreshTimeoutRef.current)
       }
     }
-  }, [limit, notificationMatchesView, page, reloadNotificationsPage])
+  }, [isSuperAdmin, limit, notificationMatchesView, page, reloadNotificationsPage])
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-5'>

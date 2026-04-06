@@ -1,10 +1,10 @@
 import type { HistoryPoint, VehicleHistory } from '../types/history'
 import { apiClient } from '../api/apiClient'
-import { filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
 
 class HistoryService {
   async getVehiclesHistory(): Promise<VehicleHistory[]> {
-    const history = await apiClient.get<VehicleHistory[]>('/history')
+    const history = await apiClient.get<VehicleHistory[]>(buildCollegeScopedPath('/history'))
     return filterByActiveCollege(history)
   }
 

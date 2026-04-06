@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { DevicesService } from './devices.service'
 import { CreateDeviceDto } from './dto/create-device.dto'
@@ -21,15 +21,15 @@ export class DevicesController {
   @ApiOperation({ summary: 'List devices' })
   @ApiResponse({ status: 200 })
   @Get()
-  async list(@CurrentUser() user: AuthenticatedUser) {
-    return this.devicesService.findAll(user)
+  async list(@CurrentUser() user: AuthenticatedUser, @Query('collegeId') collegeId?: string) {
+    return this.devicesService.findAll(user, collegeId)
   }
 
   @ApiOperation({ summary: 'List unassigned devices' })
   @ApiResponse({ status: 200 })
   @Get('unassigned')
-  async listUnassigned(@CurrentUser() user: AuthenticatedUser) {
-    return this.devicesService.listUnassigned(user)
+  async listUnassigned(@CurrentUser() user: AuthenticatedUser, @Query('collegeId') collegeId?: string) {
+    return this.devicesService.listUnassigned(user, collegeId)
   }
 
   @ApiOperation({ summary: 'Get device by UID' })

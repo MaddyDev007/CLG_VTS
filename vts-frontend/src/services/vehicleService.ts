@@ -1,6 +1,6 @@
 import type { TelemetryPoint, Trip, Vehicle, VehicleStatusCounts, VehicleType } from '../types/vehicle'
 import { apiClient } from '../api/apiClient'
-import { filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
 
 export type CreateVehicleInput = {
   vehicleName: string
@@ -115,7 +115,7 @@ class VehicleService {
     if (params?.toDate) searchParams.set('toDate', params.toDate)
 
     const suffix = searchParams.toString()
-    return suffix ? `/vehicles?${suffix}` : '/vehicles'
+    return buildCollegeScopedPath(suffix ? `/vehicles?${suffix}` : '/vehicles')
   }
 
   async getVehiclesPage(params?: VehicleListParams): Promise<PaginatedResponse<Vehicle>> {
@@ -146,7 +146,7 @@ class VehicleService {
   }
 
   async getStatusCounts(): Promise<VehicleStatusCounts> {
-    const counts = await apiClient.get<BackendVehicleStatusCounts>('/vehicles/status-counts')
+    const counts = await apiClient.get<BackendVehicleStatusCounts>(buildCollegeScopedPath('/vehicles/status-counts'))
 
     return {
       total: counts.total ?? 0,

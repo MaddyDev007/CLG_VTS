@@ -7,10 +7,11 @@ import { UpdateUserDto } from './dto/update-user.dto'
 import { hashPassword } from '../../common/utils/password.util'
 import { College } from '../colleges/college.entity'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
-import { getCollegeWhere, isSuperAdmin, mergeCollegeWhere, requireCollegeScope } from '../../common/tenant/tenant-scope'
+import { isSuperAdmin, mergeCollegeWhere, requireCollegeScope, resolveCollegeScope } from '../../common/tenant/tenant-scope'
 import { UpdateUserStatusDto } from './dto/update-user-status.dto'
 import { UserResponseDto } from './dto/user-response.dto'
 import { collegeHasRelatedData } from '../colleges/college-lifecycle.util'
+import { ListUsersDto } from './dto/list-users.dto'
 
 @Injectable()
 export class UsersService {
@@ -27,7 +28,7 @@ export class UsersService {
     private readonly dataSource: DataSource,
   ) {}
 
-  private buildDetailedUsersQuery(actor: AuthenticatedUser) {
+  private buildDetailedUsersQuery(actor: AuthenticatedUser, filters?: ListUsersDto) {
     const query = this.usersRepo
       .createQueryBuilder('u')
       .leftJoin(College, 'c', 'u."collegeId" = c.id')
@@ -43,16 +44,20 @@ export class UsersService {
       ])
       .orderBy('u."createdAt"', 'DESC')
 
-    const where = getCollegeWhere<User>(actor)
-    if (where?.collegeId) {
-      query.where('u."collegeId" = :collegeId', { collegeId: where.collegeId })
+    const collegeScope = resolveCollegeScope(actor, filters?.collegeId)
+    if (collegeScope) {
+      query.where('u."collegeId" = :collegeId', { collegeId: collegeScope })
+    }
+
+    if (filters?.role) {
+      query.andWhere('u.role = :role', { role: filters.role })
     }
 
     return query
   }
 
-  async findAll(actor: AuthenticatedUser): Promise<UserResponseDto[]> {
-    return this.buildDetailedUsersQuery(actor).getRawMany<UserResponseDto>()
+  async findAll(actor: AuthenticatedUser, filters?: ListUsersDto): Promise<UserResponseDto[]> {
+    return this.buildDetailedUsersQuery(actor, filters).getRawMany<UserResponseDto>()
   }
 
   async findByEmail(email: string): Promise<User | null> {

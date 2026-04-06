@@ -14,8 +14,10 @@ export type AppPage =
   | '/idling'
   | '/stop'
   | '/users'
+  | '/admin/colleges'
 
-const studentHiddenPages = new Set<AppPage>(['/devices', '/telemetry', '/users'])
+const studentHiddenPages = new Set<AppPage>(['/devices', '/telemetry', '/users', '/admin/colleges'])
+const superAdminOnlyPages = new Set<AppPage>(['/admin/colleges'])
 
 export function canCreate(role: UserRole | null): boolean {
   return role !== 'STUDENT' && role !== null
@@ -30,6 +32,10 @@ export function canDelete(role: UserRole | null): boolean {
 }
 
 export function canAccessPage(role: UserRole | null, page: AppPage): boolean {
+  if (superAdminOnlyPages.has(page)) {
+    return role === 'SUPER_ADMIN'
+  }
+
   if (role === 'STUDENT') {
     return !studentHiddenPages.has(page)
   }

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiBell, FiChevronDown, FiMenu, FiUser } from 'react-icons/fi'
+import { CollegeScopeSelector } from '@components/colleges/CollegeScopeSelector'
 import { ThemeToggle } from '@components/ui/ThemeToggle'
 import { useAuthStore } from '@store/authStore'
+import { useCollegeFilterStore } from '@store/collegeFilterStore'
 import { useNotificationStore } from '@store/notificationStore'
 
 type TopbarProps = {
@@ -14,6 +16,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const user = useAuthStore((state) => state.user)
   const role = useAuthStore((state) => state.role)
   const logout = useAuthStore((state) => state.logout)
+  const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
   const unreadCount = useNotificationStore((state) => state.unreadCount)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -38,8 +41,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   }
 
   return (
-    <header className='flex py-2 items-center justify-between border-b border-slate-200 bg-white px-5 dark:border-slate-700 dark:bg-[#1e293b]'>
-      <div className='flex items-center gap-3'>
+    <header className='flex min-h-16 items-center justify-between border-b border-slate-200 bg-white px-5 py-2 dark:border-slate-700 dark:bg-[#1e293b]'>
+      <div className='flex min-w-0 items-center gap-3'>
         <button
           type='button'
           onClick={onMenuClick}
@@ -59,6 +62,15 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       </div>
 
       <div className='flex items-center gap-3'>
+        <div className='hidden xl:flex xl:min-w-[240px] xl:flex-col xl:items-end xl:gap-1'>
+          <CollegeScopeSelector compact className='w-full max-w-[240px]' />
+          {role === 'SUPER_ADMIN' ? (
+            <span className='max-w-[240px] truncate text-[11px] text-slate-500 dark:text-slate-400'>
+              {selectedCollegeId ? 'College scope active' : 'Select a college for scoped pages'}
+            </span>
+          ) : null}
+        </div>
+
         <button
           type='button'
           onClick={() => navigate('/notifications')}

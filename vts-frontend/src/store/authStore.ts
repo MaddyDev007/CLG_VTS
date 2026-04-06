@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { authService, type UserRole } from '@services/authService'
+import { useCollegeFilterStore } from './collegeFilterStore'
 
 type AuthStoreState = {
   user: { id?: string; name: string; email: string } | null
@@ -31,6 +32,10 @@ export const useAuthStore = create<AuthStore>()(
       login: async (email, password) => {
         const session = await authService.login(email, password)
 
+        if (session.role !== 'SUPER_ADMIN') {
+          useCollegeFilterStore.getState().clearSelectedCollegeId()
+        }
+
         set({
           user: { id: session.id, name: session.name, email: session.email },
           token: session.token,
@@ -40,14 +45,20 @@ export const useAuthStore = create<AuthStore>()(
       },
       logout: () => {
         authService.logout()
+        useCollegeFilterStore.getState().clearSelectedCollegeId()
         set({ ...initialState })
       },
       restoreSession: () => {
         const session = authService.getCurrentUser()
 
         if (!session) {
+          useCollegeFilterStore.getState().clearSelectedCollegeId()
           set({ ...initialState })
           return
+        }
+
+        if (session.role !== 'SUPER_ADMIN') {
+          useCollegeFilterStore.getState().clearSelectedCollegeId()
         }
 
         set({

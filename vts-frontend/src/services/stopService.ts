@@ -1,7 +1,7 @@
 import type { StopEvent } from '../types/events'
 import type { TripPlaybackPoint } from '../types/trip'
 import { apiClient } from '../api/apiClient'
-import { filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
 import { fetchStops, type Stop } from './geofenceService'
 
 export type StopEventFilters = {
@@ -22,7 +22,7 @@ class StopService {
     if (filters?.endDate) query.set('endDate', filters.endDate)
 
     const suffix = query.toString() ? `?${query.toString()}` : ''
-    const events = await apiClient.get<StopEvent[]>(`/events/stop${suffix}`)
+    const events = await apiClient.get<StopEvent[]>(buildCollegeScopedPath(`/events/stop${suffix}`))
     return filterByActiveCollege(events)
   }
 

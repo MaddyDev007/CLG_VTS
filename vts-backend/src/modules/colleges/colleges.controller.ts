@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Patch, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { CollegesService } from './colleges.service'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { CurrentUser } from '../../common/auth/current-user.decorator'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
+import { CreateCollegeDto } from './dto/create-college.dto'
 import { UpdateCollegeStatusDto } from './dto/update-college-status.dto'
+import { UpdateCollegeDto } from './dto/update-college.dto'
 
 @ApiTags('Colleges')
 @ApiBearerAuth('access-token')
@@ -18,6 +20,33 @@ export class CollegesController {
   @Get()
   async list(@CurrentUser() user: AuthenticatedUser, @Query('includeAll') includeAll?: string) {
     return this.collegesService.findAll(user, includeAll === 'true')
+  }
+
+  @ApiOperation({ summary: 'Create college' })
+  @ApiResponse({ status: 200 })
+  @Post()
+  async create(@Body() payload: CreateCollegeDto, @CurrentUser() user: AuthenticatedUser) {
+    const result = await this.collegesService.create(payload, user)
+    return { success: true, ...result }
+  }
+
+  @ApiOperation({ summary: 'Get college details' })
+  @ApiResponse({ status: 200 })
+  @Get(':collegeId')
+  async get(@Param('collegeId') collegeId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.collegesService.findDetailedById(collegeId, user)
+  }
+
+  @ApiOperation({ summary: 'Update college details' })
+  @ApiResponse({ status: 200 })
+  @Patch(':collegeId')
+  async update(
+    @Param('collegeId') collegeId: string,
+    @Body() payload: UpdateCollegeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.collegesService.update(collegeId, payload, user)
+    return { success: true, ...result }
   }
 
   @ApiOperation({ summary: 'Update college status' })

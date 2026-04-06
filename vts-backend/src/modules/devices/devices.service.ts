@@ -6,7 +6,7 @@ import { CreateDeviceDto } from './dto/create-device.dto'
 import { UpdateDeviceDto } from './dto/update-device.dto'
 import { Vehicle } from '../vehicles/vehicle.entity'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
-import { assertTenantAccess, mergeCollegeWhere, requireCollegeScope } from '../../common/tenant/tenant-scope'
+import { assertTenantAccess, mergeCollegeWhere, mergeRequestedCollegeWhere, requireCollegeScope } from '../../common/tenant/tenant-scope'
 
 @Injectable()
 export class DevicesService {
@@ -15,8 +15,11 @@ export class DevicesService {
     @InjectRepository(Vehicle) private readonly vehicleRepo: Repository<Vehicle>,
   ) {}
 
-  async findAll(actor: AuthenticatedUser): Promise<Device[]> {
-    return this.deviceRepo.find({ where: mergeCollegeWhere<Device>(actor, {}), order: { updatedAt: 'DESC' } })
+  async findAll(actor: AuthenticatedUser, collegeId?: string | null): Promise<Device[]> {
+    return this.deviceRepo.find({
+      where: mergeRequestedCollegeWhere<Device>(actor, {}, collegeId),
+      order: { updatedAt: 'DESC' },
+    })
   }
 
   async findById(id: string, actor?: AuthenticatedUser): Promise<Device> {
@@ -101,8 +104,11 @@ export class DevicesService {
     await this.deviceRepo.remove(device)
   }
 
-  async listUnassigned(actor: AuthenticatedUser): Promise<Device[]> {
-    return this.deviceRepo.find({ where: mergeCollegeWhere<Device>(actor, { status: 'unassigned' }), order: { updatedAt: 'DESC' } })
+  async listUnassigned(actor: AuthenticatedUser, collegeId?: string | null): Promise<Device[]> {
+    return this.deviceRepo.find({
+      where: mergeRequestedCollegeWhere<Device>(actor, { status: 'unassigned' }, collegeId),
+      order: { updatedAt: 'DESC' },
+    })
   }
 
   async assign(deviceUid: string, vehicleId: string, vehicleName: string, actor?: AuthenticatedUser): Promise<Device> {

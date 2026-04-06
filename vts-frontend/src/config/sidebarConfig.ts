@@ -107,4 +107,14 @@ export const sidebarSections: SidebarSection[] = [
       },
     ],
   },
+  {
+    title: 'College Management',
+    items: [
+      {
+        label: 'Colleges',
+        icon: 'dashboard',
+        route: '/admin/colleges',
+      },
+    ],
+  },
 ]

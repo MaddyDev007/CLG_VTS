@@ -1,6 +1,6 @@
 import type { Notification } from '../types/notification'
 import { apiClient } from '../api/apiClient'
-import { filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
 
 type CreateNotificationInput = {
   type: Notification['type']
@@ -41,7 +41,7 @@ class NotificationService {
     if (params?.toDate) searchParams.set('toDate', params.toDate)
 
     const suffix = searchParams.toString()
-    return suffix ? `/notifications?${suffix}` : '/notifications'
+    return buildCollegeScopedPath(suffix ? `/notifications?${suffix}` : '/notifications')
   }
 
   async getNotificationsPage(params?: NotificationListParams): Promise<PaginatedNotificationsResponse> {

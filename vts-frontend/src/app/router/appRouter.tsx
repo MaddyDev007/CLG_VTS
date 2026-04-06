@@ -2,6 +2,8 @@ import { Navigate, Outlet, createBrowserRouter } from 'react-router-dom'
 import { DashboardLayout } from '@components/layout/DashboardLayout'
 import { DashboardPage } from '@pages/dashboard/DashboardPage'
 import { DevicesPage } from '@pages/dashboard/DevicesPage'
+import { CollegeDetailsPage } from '@pages/dashboard/CollegeDetailsPage'
+import { CollegesPage } from '@pages/dashboard/CollegesPage'
 import { GeofencePage } from '@pages/dashboard/GeofencePage'
 import { HistoryPage } from '@pages/dashboard/HistoryPage'
 import { IdlingDetailPage } from '@pages/dashboard/IdlingDetailPage'
@@ -143,6 +145,22 @@ export const appRouter = createBrowserRouter([
       {
         path: 'users',
         element: <UsersPage />,
+      },
+      {
+        path: 'admin/colleges',
+        element: (
+          <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+            <CollegesPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin/colleges/:id',
+        element: (
+          <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+            <CollegeDetailsPage />
+          </ProtectedRoute>
+        ),
       },
     ],
   },

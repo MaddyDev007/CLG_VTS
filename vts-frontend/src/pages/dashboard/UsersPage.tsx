@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FiPlus } from 'react-icons/fi'
+import { CollegeScopeRequiredNotice } from '@components/colleges/CollegeScopeRequiredNotice'
 import { AddUserModal, type CreateUserPayload } from '@components/users/AddUserModal'
 import { EditUserModal, type EditableUser } from '@components/users/EditUserModal'
 import { DeleteUserDialog } from '@components/users/DeleteUserDialog'
@@ -8,6 +9,7 @@ import type { UserRole } from '@services/authService'
 import { userService, type UserRecord } from '@services/userService'
 import { collegeService, type CollegeOption } from '@services/collegeService'
 import { useAuthStore } from '@store/authStore'
+import { useCollegeFilterStore } from '@store/collegeFilterStore'
 
 const roleLevel: Record<UserRole, number> = {
   SUPER_ADMIN: 4,
@@ -19,7 +21,9 @@ const roleLevel: Record<UserRole, number> = {
 export function UsersPage() {
   const currentUserRole = useAuthStore((state) => state.role) ?? 'STUDENT'
   const currentUser = useAuthStore((state) => state.user)
-  const canCreateUsers = currentUserRole !== 'STUDENT'
+  const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
+  const isSuperAdmin = currentUserRole === 'SUPER_ADMIN'
+  const canCreateUsers = currentUserRole !== 'STUDENT' && (!isSuperAdmin || Boolean(selectedCollegeId))
   const [users, setUsers] = useState<UserRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -41,13 +45,13 @@ export function UsersPage() {
 
   useEffect(() => {
     void loadUsers()
-  }, [])
+  }, [selectedCollegeId])
 
   useEffect(() => {
     const loadColleges = async () => {
       setIsLoadingColleges(true)
       try {
-        const data = await collegeService.getColleges()
+        const data = await collegeService.getCollegeOptions()
         setColleges(data)
       } finally {
         setIsLoadingColleges(false)
@@ -86,7 +90,29 @@ export function UsersPage() {
     )
   }, [currentUser?.email, currentUser?.id, currentUserRole, search, users])
 
+  const scopedCollegeOptions = useMemo(() => {
+    if (!isSuperAdmin || !selectedCollegeId) {
+      return colleges
+    }
+
+    return colleges.filter((college) => college.id === selectedCollegeId)
+  }, [colleges, isSuperAdmin, selectedCollegeId])
+
   const handleCreate = async (payload: CreateUserPayload) => {
+    if (isSuperAdmin && selectedCollegeId) {
+      if (payload.role === 'SUPER_ADMIN') {
+        throw new Error('Scoped user management cannot create SUPER_ADMIN accounts.')
+      }
+
+      await userService.createUser({
+        ...payload,
+        collegeId: selectedCollegeId,
+        collegeName: undefined,
+      })
+      await loadUsers()
+      return
+    }
+
     await userService.createUser(payload)
     await loadUsers()
   }
@@ -132,7 +158,9 @@ export function UsersPage() {
         </div>
       </section>
 
-      {isLoading ? (
+      {isSuperAdmin && !selectedCollegeId ? (
+        <CollegeScopeRequiredNotice description='Select a college from the top bar before managing users. Super admin college management remains available from the global College Management section.' />
+      ) : isLoading ? (
         <div className='rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300'>
           Loading users...
         </div>
@@ -165,7 +193,7 @@ export function UsersPage() {
           isOpen={isAddOpen}
           onClose={() => setIsAddOpen(false)}
           onCreate={handleCreate}
-          colleges={colleges}
+          colleges={scopedCollegeOptions}
           isLoadingColleges={isLoadingColleges}
           currentUserRole={currentUserRole}
         />
@@ -176,16 +204,20 @@ export function UsersPage() {
         isOpen={Boolean(editingUser)}
         onClose={() => setEditingUser(null)}
         onSave={async (payload) => {
+          if (isSuperAdmin && selectedCollegeId && payload.role === 'SUPER_ADMIN') {
+            throw new Error('Scoped user management cannot promote users to SUPER_ADMIN.')
+          }
+
           await userService.updateUser(payload.id, {
             name: payload.name,
             role: payload.role,
-            collegeId: payload.collegeId,
+            collegeId: isSuperAdmin && selectedCollegeId ? selectedCollegeId : payload.collegeId,
             collegeName: payload.collegeNameInput,
             status: payload.status,
           })
           await loadUsers()
         }}
-        colleges={colleges}
+        colleges={scopedCollegeOptions}
         isLoadingColleges={isLoadingColleges}
       />
 

@@ -1,6 +1,6 @@
 import type { Device } from '../types/device'
 import { apiClient } from '../api/apiClient'
-import { filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
 
 export type CreateDeviceInput = {
   deviceId: string
@@ -27,7 +27,7 @@ function normalizeStatus(device: Omit<Device, 'status'> & { status?: Device['sta
 
 class DeviceService {
   async getDevices(): Promise<Device[]> {
-    const devices = await apiClient.get<Device[]>('/devices')
+    const devices = await apiClient.get<Device[]>(buildCollegeScopedPath('/devices'))
     return filterByActiveCollege(devices).map((device) => normalizeStatus(device))
   }
 
@@ -53,7 +53,7 @@ class DeviceService {
   }
 
   async getUnassignedDevices(): Promise<Device[]> {
-    const devices = await apiClient.get<Device[]>('/devices/unassigned')
+    const devices = await apiClient.get<Device[]>(buildCollegeScopedPath('/devices/unassigned'))
     return filterByActiveCollege(devices).map((device) => normalizeStatus(device))
   }
 

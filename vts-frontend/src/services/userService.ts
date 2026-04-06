@@ -1,5 +1,6 @@
 import type { UserRole } from './authService'
 import { apiClient } from '../api/apiClient'
+import { buildCollegeScopedPath } from '@utils/collegeScope'
 
 export type UserStatus = 'active' | 'disabled'
 
@@ -27,9 +28,24 @@ export type UpdateUserInput = Partial<Omit<UserRecord, 'id' | 'email' | 'created
   collegeName?: string
 }
 
+export type UserListParams = {
+  collegeId?: string
+  role?: UserRole
+  ignoreActiveCollegeScope?: boolean
+}
+
 class UserService {
-  async getUsers(): Promise<UserRecord[]> {
-    return apiClient.get<UserRecord[]>('/users')
+  async getUsers(params?: UserListParams): Promise<UserRecord[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.collegeId) searchParams.set('collegeId', params.collegeId)
+    if (params?.role) searchParams.set('role', params.role)
+
+    const basePath = searchParams.toString() ? `/users?${searchParams.toString()}` : '/users'
+    return apiClient.get<UserRecord[]>(
+      buildCollegeScopedPath(basePath, {
+        ignoreActiveCollegeScope: params?.ignoreActiveCollegeScope,
+      }),
+    )
   }
 
   async createUser(input: CreateUserInput): Promise<{ success: true; user: UserRecord }> {

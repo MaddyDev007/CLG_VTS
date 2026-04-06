@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { UsersService } from './users.service'
 import { CreateUserDto } from './dto/create-user.dto'
@@ -9,6 +9,7 @@ import type { AuthenticatedUser } from '../../common/auth/authenticated-user.int
 import { UpdateUserStatusDto } from './dto/update-user-status.dto'
 import { Roles } from '../../common/guards/roles.decorator'
 import { RolesGuard } from '../../common/guards/roles.guard'
+import { ListUsersDto } from './dto/list-users.dto'
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -21,8 +22,8 @@ export class UsersController {
   @ApiOperation({ summary: 'List users' })
   @ApiResponse({ status: 200 })
   @Get()
-  async list(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.findAll(user)
+  async list(@CurrentUser() user: AuthenticatedUser, @Query() query: ListUsersDto) {
+    return this.usersService.findAll(user, query)
   }
 
   @ApiOperation({ summary: 'Get user by id' })

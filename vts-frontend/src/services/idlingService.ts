@@ -1,7 +1,7 @@
 import type { IdlingEvent } from '../types/events'
 import type { TripPlaybackPoint } from '../types/trip'
 import { apiClient } from '../api/apiClient'
-import { filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
 
 export type IdlingEventFilters = {
   vehicleId?: string
@@ -19,7 +19,7 @@ class IdlingService {
     if (filters?.endDate) query.set('endDate', filters.endDate)
 
     const suffix = query.toString() ? `?${query.toString()}` : ''
-    const events = await apiClient.get<IdlingEvent[]>(`/events/idling${suffix}`)
+    const events = await apiClient.get<IdlingEvent[]>(buildCollegeScopedPath(`/events/idling${suffix}`))
     return filterByActiveCollege(events)
   }
 

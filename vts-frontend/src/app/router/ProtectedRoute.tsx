@@ -16,9 +16,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to='/login' replace />
   }
 
-  // Role-based checks can be enforced later using allowedRoles and role.
-  void allowedRoles
-  void role
+  if (allowedRoles && role && !allowedRoles.includes(role)) {
+    return <Navigate to='/dashboard' replace />
+  }
 
   return children
 }

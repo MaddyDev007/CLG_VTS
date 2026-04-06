@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { RoutesService } from './routes.service'
 import { CreateRouteDto } from './dto/create-route.dto'
@@ -19,8 +19,8 @@ export class RoutesController {
   @ApiOperation({ summary: 'List routes' })
   @ApiResponse({ status: 200 })
   @Get()
-  async list(@CurrentUser() user: AuthenticatedUser) {
-    return this.routesService.findAll(user)
+  async list(@CurrentUser() user: AuthenticatedUser, @Query('collegeId') collegeId?: string) {
+    return this.routesService.findAll(user, collegeId)
   }
 
   @ApiOperation({ summary: 'Get route by id' })

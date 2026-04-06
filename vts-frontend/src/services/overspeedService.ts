@@ -1,7 +1,7 @@
 import type { TripPlaybackPoint } from '../types/trip'
 import type { OverspeedEvent } from '../types/events'
 import { apiClient } from '../api/apiClient'
-import { filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
 
 export type OverspeedEventFilters = {
   vehicleId?: string
@@ -19,7 +19,7 @@ class OverspeedService {
     if (filters?.endDate) query.set('endDate', filters.endDate)
 
     const suffix = query.toString() ? `?${query.toString()}` : ''
-    const events = await apiClient.get<OverspeedEvent[]>(`/events/overspeed${suffix}`)
+    const events = await apiClient.get<OverspeedEvent[]>(buildCollegeScopedPath(`/events/overspeed${suffix}`))
     return filterByActiveCollege(events)
   }
 

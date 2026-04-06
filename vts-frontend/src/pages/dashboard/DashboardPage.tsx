@@ -5,10 +5,8 @@ import { RecentActivities } from '@components/dashboard/RecentActivities'
 import { DashboardLayout } from '@components/layout/DashboardLayout'
 import { StatCard } from '@components/ui/StatCard'
 import { WelcomeCard } from '@components/ui/WelcomeCard'
-import { collegeService, type CollegeOption } from '@services/collegeService'
 import { socketService } from '@services/socketService'
 import { useAuthStore } from '@store/authStore'
-import { useCollegeFilterStore } from '@store/collegeFilterStore'
 import { deriveVehicleStatusCounts, mergeVehicleSocketPayload } from '@utils/vehicleRealtime'
 import { useNavigate } from 'react-router-dom'
 import { vehicleService } from '@services/vehicleService'
@@ -73,37 +71,11 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const role = useAuthStore((state) => state.role)
-  const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
-  const setSelectedCollegeId = useCollegeFilterStore((state) => state.setSelectedCollegeId)
 
   const [fleet, setFleet] = useState<Vehicle[]>([])
   const [activities, setActivities] = useState<ActivityItem[]>([])
-  const [colleges, setColleges] = useState<CollegeOption[]>([])
-  const [isLoadingColleges, setIsLoadingColleges] = useState(false)
 
   const isSuperAdmin = role === 'SUPER_ADMIN'
-
-  useEffect(() => {
-    if (!isSuperAdmin) {
-      return
-    }
-
-    const loadColleges = async () => {
-      setIsLoadingColleges(true)
-      try {
-        const data = await collegeService.getColleges()
-        setColleges(data)
-
-        if (selectedCollegeId && !data.some((college) => college.id === selectedCollegeId)) {
-          setSelectedCollegeId(null)
-        }
-      } finally {
-        setIsLoadingColleges(false)
-      }
-    }
-
-    void loadColleges()
-  }, [isSuperAdmin, selectedCollegeId, setSelectedCollegeId])
 
   useEffect(() => {
     const loadFleet = async () => {
@@ -122,25 +94,36 @@ export function DashboardPage() {
 
     void loadFleet()
     void loadActivities()
-  }, [selectedCollegeId])
+  }, [])
 
   useEffect(() => {
     const unsubscribeVehicleUpdates = socketService.subscribeToVehicleUpdates((payload) => {
+      if (isSuperAdmin) {
+        void vehicleService.getVehicles({ page: 1, limit: 500 }).then(setFleet)
+        return
+      }
+
       setFleet((currentFleet) => mergeVehicleSocketPayload(currentFleet, payload))
     })
 
     const unsubscribeNotifications = socketService.subscribeToNotifications((notification) => {
-      setActivities((currentActivities) => [
-        mapNotificationToActivity(notification),
-        ...currentActivities.filter((item) => item.id !== notification.id),
-      ].slice(0, 10))
+      if (isSuperAdmin) {
+        void notificationService
+          .getNotifications({ page: 1, limit: 10 })
+          .then((notifications) => setActivities(notifications.slice(0, 10).map(mapNotificationToActivity)))
+        return
+      }
+
+      setActivities((currentActivities) =>
+        [mapNotificationToActivity(notification), ...currentActivities.filter((item) => item.id !== notification.id)].slice(0, 10),
+      )
     })
 
     return () => {
       unsubscribeVehicleUpdates()
       unsubscribeNotifications()
     }
-  }, [])
+  }, [isSuperAdmin])
 
   const counts = useMemo(() => deriveVehicleStatusCounts(fleet), [fleet])
   const stoppedCount = useMemo(() => counts.stopped ?? 0, [counts])
@@ -161,28 +144,7 @@ export function DashboardPage() {
         <WelcomeCard
           name={user?.name ?? 'Operator'}
           role={role ?? 'NO_ROLE'}
-          actions={
-            isSuperAdmin ? (
-              <label className='block space-y-2'>
-                <span className='text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400'>
-                  College Scope
-                </span>
-                <select
-                  value={selectedCollegeId ?? ''}
-                  onChange={(event) => setSelectedCollegeId(event.target.value || null)}
-                  disabled={isLoadingColleges}
-                  className='w-full rounded-xl border border-slate-200 bg-white/85 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-100 dark:focus:border-[#38bdf8]'
-                >
-                  <option value=''>{isLoadingColleges ? 'Loading colleges...' : 'All colleges'}</option>
-                  {colleges.map((college) => (
-                    <option key={college.id} value={college.id}>
-                      {college.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null
-          }
+          actions={null}
         />
 
         <section className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5'>

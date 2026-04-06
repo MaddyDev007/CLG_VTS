@@ -28,6 +28,15 @@ export function getCollegeWhere<T extends ObjectLiteral>(
   return { collegeId: requireCollegeScope(user) } as unknown as FindOptionsWhere<T>
 }
 
+export function resolveCollegeScope(user: AuthenticatedUser, requestedCollegeId?: string | null): string | null {
+  if (isSuperAdmin(user)) {
+    const normalizedCollegeId = requestedCollegeId?.trim()
+    return normalizedCollegeId ? normalizedCollegeId : null
+  }
+
+  return requireCollegeScope(user)
+}
+
 export function mergeCollegeWhere<T extends ObjectLiteral>(
   user: AuthenticatedUser,
   where: FindOptionsWhere<T>,
@@ -41,6 +50,22 @@ export function mergeCollegeWhere<T extends ObjectLiteral>(
     ...where,
     ...collegeWhere,
   }
+}
+
+export function mergeRequestedCollegeWhere<T extends ObjectLiteral>(
+  user: AuthenticatedUser,
+  where: FindOptionsWhere<T>,
+  requestedCollegeId?: string | null,
+): FindOptionsWhere<T> {
+  const collegeScope = resolveCollegeScope(user, requestedCollegeId)
+  if (!collegeScope) {
+    return where
+  }
+
+  return {
+    ...where,
+    collegeId: collegeScope,
+  } as unknown as FindOptionsWhere<T>
 }
 
 export function applyTenantScope<T extends ObjectLiteral>(
@@ -59,6 +84,17 @@ export function applyCollegeScope<T extends ObjectLiteral>(
   user: AuthenticatedUser,
 ): SelectQueryBuilder<T> {
   return applyTenantScope(query, alias, user)
+}
+
+export function applyRequestedTenantScope<T extends ObjectLiteral>(
+  query: SelectQueryBuilder<T>,
+  alias: string,
+  user: AuthenticatedUser,
+  requestedCollegeId?: string | null,
+): SelectQueryBuilder<T> {
+  return query.andWhere(`(:collegeScope::uuid IS NULL OR ${alias}.collegeId = :collegeScope::uuid)`, {
+    collegeScope: resolveCollegeScope(user, requestedCollegeId),
+  })
 }
 
 export function assertTenantAccess(resourceCollegeId: string | null | undefined, user: AuthenticatedUser) {

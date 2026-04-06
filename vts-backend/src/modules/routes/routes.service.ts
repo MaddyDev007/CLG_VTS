@@ -6,7 +6,13 @@ import { CreateRouteDto } from './dto/create-route.dto'
 import { UpdateRouteDto } from './dto/update-route.dto'
 import { Vehicle } from '../vehicles/vehicle.entity'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
-import { applyTenantScope, assertTenantAccess, mergeCollegeWhere, requireCollegeScope } from '../../common/tenant/tenant-scope'
+import {
+  applyTenantScope,
+  assertTenantAccess,
+  mergeCollegeWhere,
+  mergeRequestedCollegeWhere,
+  requireCollegeScope,
+} from '../../common/tenant/tenant-scope'
 
 @Injectable()
 export class RoutesService {
@@ -15,8 +21,11 @@ export class RoutesService {
     @InjectRepository(Vehicle) private readonly vehicleRepo: Repository<Vehicle>,
   ) {}
 
-  async findAll(actor: AuthenticatedUser): Promise<Route[]> {
-    return this.routeRepo.find({ where: mergeCollegeWhere<Route>(actor, {}), order: { createdAt: 'DESC' } })
+  async findAll(actor: AuthenticatedUser, collegeId?: string | null): Promise<Route[]> {
+    return this.routeRepo.find({
+      where: mergeRequestedCollegeWhere<Route>(actor, {}, collegeId),
+      order: { createdAt: 'DESC' },
+    })
   }
 
   async findById(id: string, actor?: AuthenticatedUser): Promise<Route> {

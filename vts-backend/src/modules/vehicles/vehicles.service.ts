@@ -9,7 +9,14 @@ import { DevicesService } from '../devices/devices.service'
 import { computeVehicleStatus, getOfflineThresholdMs } from '../../common/utils/vehicleStatus'
 import { Route } from '../routes/route.entity'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
-import { applyTenantScope, assertTenantAccess, mergeCollegeWhere, requireCollegeScope } from '../../common/tenant/tenant-scope'
+import {
+  applyTenantScope,
+  applyRequestedTenantScope,
+  assertTenantAccess,
+  mergeCollegeWhere,
+  mergeRequestedCollegeWhere,
+  requireCollegeScope,
+} from '../../common/tenant/tenant-scope'
 import { ListVehiclesDto } from './dto/list-vehicles.dto'
 
 @Injectable()
@@ -34,7 +41,7 @@ export class VehiclesService {
     const limit = filters.limit ?? 20
     const query = this.vehicleRepo.createQueryBuilder('vehicle').orderBy('vehicle.updatedAt', 'DESC')
 
-    applyTenantScope(query, 'vehicle', actor)
+    applyRequestedTenantScope(query, 'vehicle', actor, filters.collegeId)
 
     if (filters.search?.trim()) {
       const search = `%${filters.search.trim().toLowerCase()}%`
@@ -71,7 +78,7 @@ export class VehiclesService {
 
   async findById(id: string, actor?: AuthenticatedUser): Promise<Vehicle> {
     const vehicle = await this.vehicleRepo.findOne({
-      where: actor ? mergeCollegeWhere<Vehicle>(actor, { id }) : { id },
+      where: actor ? mergeRequestedCollegeWhere<Vehicle>(actor, { id }, null) : { id },
     })
 
     if (!vehicle) {
@@ -193,7 +200,7 @@ export class VehiclesService {
 
   async getStatusCounts(actor: AuthenticatedUser) {
     const vehicles = await this.vehicleRepo.find({
-      where: mergeCollegeWhere<Vehicle>(actor, {}),
+      where: mergeRequestedCollegeWhere<Vehicle>(actor, {}, null),
       order: { updatedAt: 'DESC' },
     })
     const scopedVehicles = await Promise.all(vehicles.map((vehicle) => this.applyTelemetryStatus(vehicle)))

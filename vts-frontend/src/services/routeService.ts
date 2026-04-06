@@ -1,7 +1,7 @@
 import type { Route, RouteStop } from '../types/route'
 import type { Vehicle } from '../types/vehicle'
 import { apiClient } from '../api/apiClient'
-import { filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
 
 export type DeleteRouteResponse = {
   success: true
@@ -36,7 +36,7 @@ export type CreateRouteResponse = {
 
 class RouteService {
   async getRoutes(): Promise<Route[]> {
-    const routes = await apiClient.get<Route[]>('/routes')
+    const routes = await apiClient.get<Route[]>(buildCollegeScopedPath('/routes'))
     return filterByActiveCollege(routes)
   }
 

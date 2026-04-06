@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform } from 'class-transformer'
-import { IsDateString, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator'
+import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
 
 export class ListVehiclesDto {
   @ApiPropertyOptional({ example: 1, default: 1 })
@@ -35,4 +35,9 @@ export class ListVehiclesDto {
   @IsOptional()
   @IsDateString()
   toDate?: string
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  collegeId?: string
 }

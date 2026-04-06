@@ -58,7 +58,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 label: item.label,
                 route: item.route,
                 icon: iconMap[item.icon] ?? iconMap.dashboard,
-                isActive: location.pathname === item.route,
+                isActive: location.pathname === item.route || location.pathname.startsWith(`${item.route}/`),
               }))}
             />
           ))}
