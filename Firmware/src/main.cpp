@@ -123,6 +123,7 @@ uint64_t fallbackTimestampMs();
 bool isLeapYear(int year);
 int daysInMonth(int year, int month);
 bool extractQuotedField(const String& input, int& cursor, String& value);
+bool extractQmtRecvPayload(const String& input, int& cursor, String& value);
 bool extractJsonStringValue(const String& json, const String& key, String& value);
 bool extractJsonUnsignedLongValue(const String& json, const String& key, unsigned long& value);
 
@@ -592,88 +593,47 @@ void processIncomingMqttMessages(const String& modemOutput) {
   Serial.println("Incoming modem output:");
   Serial.println(modemOutput);
 
-  String line = "";
-  for (int i = 0; i < modemOutput.length(); i++) {
-    char c = modemOutput.charAt(i);
-    if (c == '\r') {
+  int searchStart = 0;
+  while (searchStart < modemOutput.length()) {
+    int messageStart = modemOutput.indexOf("+QMTRECV:", searchStart);
+    if (messageStart < 0) {
+      break;
+    }
+
+    int cursor = modemOutput.indexOf(':', messageStart);
+    if (cursor < 0) {
+      Serial.println("Ignoring malformed +QMTRECV line: missing ':'");
+      break;
+    }
+
+    cursor++;
+    String topic;
+    String payload;
+
+    if (!extractQuotedField(modemOutput, cursor, topic)) {
+      Serial.println("Ignoring malformed +QMTRECV line: topic parse failed");
+      searchStart = messageStart + 9;
       continue;
     }
 
-    if (c == '\n') {
-      line.trim();
-      if (line.startsWith("+QMTRECV:")) {
-        int cursor = line.indexOf(':');
-        if (cursor < 0) {
-          Serial.println("Ignoring malformed +QMTRECV line: missing ':'");
-          line = "";
-          continue;
-        }
-
-        cursor++;
-        String topic;
-        String payload;
-
-        if (!extractQuotedField(line, cursor, topic)) {
-          Serial.println("Ignoring malformed +QMTRECV line: topic parse failed");
-          line = "";
-          continue;
-        }
-
-        if (!extractQuotedField(line, cursor, payload)) {
-          Serial.println("Ignoring malformed +QMTRECV line: payload parse failed");
-          line = "";
-          continue;
-        }
-
-        if (topic != buildCommandTopic()) {
-          Serial.println("Ignoring MQTT message on unexpected topic: " + topic);
-          line = "";
-          continue;
-        }
-
-        Serial.println("MQTT command topic: " + topic);
-        Serial.println("MQTT command payload: " + payload);
-        handleCommand(payload);
-      }
-      line = "";
+    if (!extractQmtRecvPayload(modemOutput, cursor, payload)) {
+      Serial.println("Ignoring malformed +QMTRECV line: payload parse failed");
+      searchStart = messageStart + 9;
       continue;
     }
 
-    line += c;
-  }
+    searchStart = cursor;
 
-  line.trim();
-  if (!line.startsWith("+QMTRECV:")) {
-    return;
-  }
+    if (topic != buildCommandTopic()) {
+      Serial.println("Ignoring MQTT message on unexpected topic: " + topic);
+      continue;
+    }
 
-  int cursor = line.indexOf(':');
-  if (cursor < 0) {
-    Serial.println("Ignoring malformed +QMTRECV line: missing ':'");
-    return;
+    payload.trim();
+    Serial.println("MQTT command topic: " + topic);
+    Serial.println("MQTT command payload: " + payload);
+    handleCommand(payload);
   }
-
-  cursor++;
-  String topic;
-  String payload;
-  if (!extractQuotedField(line, cursor, topic)) {
-    Serial.println("Ignoring malformed +QMTRECV line: topic parse failed");
-    return;
-  }
-
-  if (!extractQuotedField(line, cursor, payload)) {
-    Serial.println("Ignoring malformed +QMTRECV line: payload parse failed");
-    return;
-  }
-
-  if (topic != buildCommandTopic()) {
-    Serial.println("Ignoring MQTT message on unexpected topic: " + topic);
-    return;
-  }
-
-  Serial.println("MQTT command topic: " + topic);
-  Serial.println("MQTT command payload: " + payload);
-  handleCommand(payload);
 }
 
 void enqueueMessage(const String& topic, const String& payload) {
@@ -992,6 +952,88 @@ bool extractQuotedField(const String& input, int& cursor, String& value) {
     }
 
     value += c;
+  }
+
+  return false;
+}
+
+bool extractQmtRecvPayload(const String& input, int& cursor, String& value) {
+  while (cursor < input.length() && input.charAt(cursor) != '"') {
+    cursor++;
+  }
+
+  if (cursor >= input.length()) {
+    return false;
+  }
+
+  cursor++;
+  int payloadStart = cursor;
+
+  while (payloadStart < input.length() && isspace(static_cast<unsigned char>(input.charAt(payloadStart)))) {
+    payloadStart++;
+  }
+
+  if (payloadStart >= input.length()) {
+    return false;
+  }
+
+  char opening = input.charAt(payloadStart);
+  if (opening != '{' && opening != '[') {
+    return extractQuotedField(input, cursor, value);
+  }
+
+  char closing = opening == '{' ? '}' : ']';
+  int depth = 0;
+  bool inString = false;
+  bool escapeNext = false;
+
+  for (int i = payloadStart; i < input.length(); i++) {
+    char c = input.charAt(i);
+
+    if (inString) {
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+
+      if (c == '\\') {
+        escapeNext = true;
+        continue;
+      }
+
+      if (c == '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (c == '"') {
+      inString = true;
+      continue;
+    }
+
+    if (c == opening) {
+      depth++;
+      continue;
+    }
+
+    if (c == closing) {
+      depth--;
+      if (depth == 0) {
+        value = input.substring(cursor, i + 1);
+        cursor = i + 1;
+        while (cursor < input.length() && isspace(static_cast<unsigned char>(input.charAt(cursor)))) {
+          cursor++;
+        }
+
+        if (cursor < input.length() && input.charAt(cursor) == '"') {
+          cursor++;
+          return true;
+        }
+
+        return false;
+      }
+    }
   }
 
   return false;
