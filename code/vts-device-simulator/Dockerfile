@@ -1,0 +1,19 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+ARG VITE_DEVICE_SIMULATOR_URL=http://localhost:3011
+ARG VITE_MQTT_TOPIC_PREFIX=vts
+
+ENV VITE_DEVICE_SIMULATOR_URL=${VITE_DEVICE_SIMULATOR_URL}
+ENV VITE_MQTT_TOPIC_PREFIX=${VITE_MQTT_TOPIC_PREFIX}
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+RUN npm run build
+
+EXPOSE 3011
+
+CMD ["npm", "run", "start"]
