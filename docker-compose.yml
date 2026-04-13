@@ -122,7 +122,7 @@ services:
       POSTGRES_URL: postgres://${POSTGRES_USER:-postgres}:${DB_PASSWORD:-vts123}@postgres:5432/${POSTGRES_DB:-vts}
       MQTT_BROKER_URL: mqtt://mosquitto:1883
     ports:
-      - "${SIMULATOR_BIND_ADDRESS:-127.0.0.1}:${SIMULATOR_PORT:-3011}:3011"
+      - "${SIMULATOR_BIND_ADDRESS:-0.0.0.0}:${SIMULATOR_PORT:-3011}:3011"
     depends_on:
       postgres:
         condition: service_healthy

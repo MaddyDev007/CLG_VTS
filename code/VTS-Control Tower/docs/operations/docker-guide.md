@@ -171,7 +171,10 @@ What to open locally:
 - simulator UI: `http://127.0.0.1:3011`
 - simulator health: `http://127.0.0.1:3011/health`
 
-The simulator binds to `127.0.0.1:3011`, so it is reachable only from the same machine.
+The simulator now binds to `0.0.0.0:3011` by default.
+
+- on the same machine, use `http://localhost:3011` or `http://127.0.0.1:3011`
+- on EC2, use `http://<ec2-public-host-or-dns>:3011` after allowing inbound TCP `3011`
 
 ## Local Debug Checklist
 
@@ -330,6 +333,11 @@ Expected simulator URLs after startup:
 
 - simulator UI/API: `http://127.0.0.1:3011`
 - simulator health: `http://127.0.0.1:3011/health`
+
+From another machine, the same simulator is reachable at:
+
+- `http://<ec2-public-host-or-dns>:3011`
+- `http://<ec2-public-host-or-dns>:3011/health`
 
 If builds still OOM, add swap before rebuilding:
 
