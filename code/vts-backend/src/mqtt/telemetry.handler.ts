@@ -177,12 +177,11 @@ export class TelemetryHandler {
   private getDeviceIdFromTopic(topic: string): string | null {
     const parts = topic.split('/')
 
-    if (
-      parts.length === 4 &&
-      parts[0] === 'vts' &&
-      parts[1] === 'devices' &&
-      parts[3] === 'telemetry'
-    ) {
+    if (parts.length === 3 && parts[0] === 'vts' && parts[2] === 'telemetry') {
+      return parts[1]
+    }
+
+    if (parts.length === 4 && parts[0] === 'vts' && parts[1] === 'devices' && parts[3] === 'telemetry') {
       return parts[2]
     }
 

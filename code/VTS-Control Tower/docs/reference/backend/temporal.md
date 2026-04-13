@@ -1,6 +1,10 @@
 # Temporal
 
-Temporal support is included in the codebase, but the Docker Compose file in this repo does **not** start Temporal services. If you enable it, you must run a Temporal server separately and set `TEMPORAL_ADDRESS`.
+Temporal support is included in the codebase, but it is disabled by default.
+
+Use these env variables:
+- `TEMPORAL_ENABLED=false` keeps startup non-blocking
+- `TEMPORAL_ADDRESS=` only matters when `TEMPORAL_ENABLED=true`
 
 ## Components
 - Temporal Server: `localhost:7233`
@@ -23,4 +27,4 @@ http://localhost:8233
 ```
 
 ## Note
-If you are not using Temporal, remove `TemporalModule` from `AppModule` to avoid startup failures.
+You do not need to remove `TemporalModule` from `AppModule` anymore. Keep `TEMPORAL_ENABLED=false` when Temporal is not in use.

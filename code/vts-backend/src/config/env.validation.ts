@@ -9,6 +9,10 @@ class EnvironmentVariables {
   @Min(1)
   PORT!: number
 
+  @IsOptional()
+  @IsString()
+  API_PREFIX?: string
+
   @IsString()
   DB_HOST!: string
 
@@ -68,7 +72,15 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  TEMPORAL_ENABLED?: string
+
+  @IsOptional()
+  @IsString()
   REDIS_URL?: string
+
+  @IsOptional()
+  @IsString()
+  TELEMETRY_STATE_STORE?: string
 
   @IsOptional()
   @IsString()

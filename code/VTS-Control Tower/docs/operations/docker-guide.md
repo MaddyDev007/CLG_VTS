@@ -1,387 +1,302 @@
 # Docker Guide
 
-## What Was Dockerized
+## Deployment Shape
 
-The following projects are now Dockerized:
+This repo now supports a production-like single-host deployment on one Ubuntu EC2 instance using Docker and Docker Compose only.
+
+Default services:
+
+- `postgres`
+- `mosquitto`
+- `backend`
+- `frontend`
+
+Optional profile:
+
+- `vts-device-simulator`
+
+Default EC2 behavior:
+
+- only the frontend container publishes a public HTTP port
+- backend, PostgreSQL, Mosquitto, and simulator stay on the Docker network unless you explicitly expose them
+- Temporal is disabled by default and is not started by Compose
+- Redis is optional; the backend falls back to in-memory telemetry state when `REDIS_URL` is unset
+
+## Source-Of-Truth Paths
+
+Use only these repo paths for EC2 deployment:
 
 - `code/vts-backend`
 - `code/vts-frontend`
 - `code/vts-device-simulator`
-
-The following project is intentionally excluded:
-
-- `code/Firmware`
-
-## Where Docker Compose Lives
-
-The main Compose file was moved out of the backend and placed at the repository root:
-
-- `docker-compose.yml`
-
-This location is better because it manages the full platform, not just the backend.
-
-## Containers In The Stack
-
-Application containers:
-
-- `vts-backend`
-- `vts-frontend`
-- `vts-device-simulator`
-
-Infrastructure containers:
-
-- `vts-postgres`
-- `vts-mosquitto`
-- `vts-redis`
-- `vts-temporal`
-- `vts-temporal-ui`
-
-## Container Responsibilities
-
-### `vts-backend`
-
-- Runs the NestJS API
-- Listens for MQTT telemetry
-- Exposes TCP and UDP ingestion ports
-- Connects to PostgreSQL, Redis, Mosquitto, and Temporal
-
-Ports:
-
-- `3000` HTTP API
-- `4001/udp` UDP telemetry ingestion
-- `4002/tcp` TCP telemetry ingestion
-
-### `vts-frontend`
-
-- Builds the React app
-- Serves the production frontend via Nginx
-
-Port:
-
-- `5173`
-
-### `vts-device-simulator`
-
-- Builds the simulator React UI
-- Runs the simulator Express server
-- Serves the built simulator UI and its `/health`, `/devices`, and `/publish` endpoints from one container
-- Publishes directly to MQTT, TCP, or UDP targets
-
-Port:
-
-- `3011`
-
-### `vts-postgres`
-
-- Stores application data
-
-Port:
-
-- `5432`
-
-### `vts-mosquitto`
-
-- MQTT broker for telemetry
-- WebSocket MQTT endpoint
-
-Ports:
-
-- `1883`
-- `9001`
-
-### `vts-redis`
-
-- Redis cache/state store
-
-Port:
-
-- `6379`
-
-### `vts-temporal`
-
-- Temporal workflow service
-
-Port:
-
-- `7233`
-
-### `vts-temporal-ui`
-
-- Temporal web UI
-
-Port:
-
-- `8080`
-
-## Files Added Or Changed
-
-### New root orchestration
-
-- `docker-compose.yml`
 - `docker/mosquitto/mosquitto.conf`
 
-### Backend updates
+Do not rely on any manually copied top-level `frontend/` or `simulator/` folders on the server.
 
-- `code/vts-backend/src/main.ts`
-- `code/vts-backend/src/config/env.validation.ts`
-- `code/vts-backend/.env.docker`
-- `code/vts-backend/README.md`
+## Ubuntu EC2 Prerequisites
 
-### Frontend Docker support
+- Ubuntu 24.04
+- Docker Engine installed
+- Docker Compose plugin installed
+- enough free disk on the 20 GiB root volume for image builds
+- inbound HTTP allowed to the frontend port in the EC2 security group
 
-- `code/vts-frontend/Dockerfile`
-- `code/vts-frontend/nginx.conf`
-- `code/vts-frontend/.dockerignore`
+Recommended checks:
 
-### Simulator Docker support
+```bash
+docker version
+docker compose version
+```
 
-- `code/vts-device-simulator/Dockerfile`
-- `code/vts-device-simulator/.dockerignore`
-- `code/vts-device-simulator/server/index.ts`
-- `code/vts-device-simulator/package.json`
-- `code/vts-device-simulator/vite.config.ts`
+## Env Files
 
-## URLs After `docker compose up`
+Compose reads:
 
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3000`
-- Swagger: `http://localhost:3000/api/docs`
-- Simulator: `http://localhost:3011`
-- Temporal UI: `http://localhost:8080`
-- MQTT broker: `mqtt://localhost:1883`
+- root deployment env: `.env`
+- backend Compose defaults: `docker/env/backend.env`
+- simulator Compose defaults: `docker/env/simulator.env`
 
-## Build Commands
+Templates:
 
-Build everything:
+- root deployment template: `.env.example`
+- backend local template: `code/vts-backend/.env.example`
+- frontend local template: `code/vts-frontend/.env.example`
+- simulator local template: `code/vts-device-simulator/.env.example`
+
+Create the deployment env file once on the EC2 host:
+
+```bash
+cp .env.example .env
+```
+
+### Required root `.env` values
+
+- `POSTGRES_DB`
+- `POSTGRES_USER`
+- `DB_PASSWORD`
+- `JWT_SECRET`
+
+### Optional root `.env` values
+
+- `FRONTEND_BIND_ADDRESS`
+- `FRONTEND_PORT`
+- `SIMULATOR_BIND_ADDRESS`
+- `SIMULATOR_PORT`
+- `VITE_API_BASE_URL`
+- `VITE_WS_URL`
+- `VITE_DEVICE_SIMULATOR_URL`
+- `VITE_MQTT_TOPIC_PREFIX`
+- `FRONTEND_NODE_OPTIONS`
+- `SIMULATOR_NODE_OPTIONS`
+- `MQTT_USERNAME`
+- `MQTT_PASSWORD`
+- `CORS_ORIGINS`
+- `TEMPORAL_ENABLED`
+- `TEMPORAL_ADDRESS`
+- `REDIS_URL`
+
+### Local-dev-only values
+
+These stay in app-local env files and are not needed for the EC2 Compose path:
+
+- `code/vts-backend/.env`
+- `code/vts-frontend/.env`
+- `code/vts-device-simulator/.env`
+
+## Routing Model
+
+The frontend container is the public entrypoint.
+
+- nginx serves the built React app
+- `/api/*` proxies to `backend:3000`
+- `/socket.io/*` proxies to `backend:3000`
+- SPA refreshes fall back to `index.html`
+
+This keeps the backend internal while preserving REST and WebSocket behavior for the browser.
+
+## Exact Deployment Commands
+
+Pull the latest code:
+
+```bash
+git pull
+```
+
+Build the default stack:
 
 ```bash
 docker compose build
 ```
 
-Build one container:
-
-```bash
-docker compose build backend
-docker compose build frontend
-docker compose build vts-device-simulator
-```
-
-Build from scratch without cache:
-
-```bash
-docker compose build --no-cache
-```
-
-## Start Commands
-
-Recommended order after successful local testing:
-
-1. stop the local backend terminal
-2. stop the local frontend terminal
-3. stop the simulator server terminal
-4. stop the simulator UI terminal
-5. start Docker from the repository root
-
-Important rule:
-
-- do not run local `npm` app processes and Docker app containers at the same time
-- otherwise you can hit port conflicts on `3000`, `3011`, `5173`, `4001`, and `4002`
-
-Start the full stack in detached mode:
+Start the default stack:
 
 ```bash
 docker compose up -d
 ```
 
-Start and rebuild changed images:
+Read logs:
 
 ```bash
-docker compose up -d --build
-```
-
-Clean handoff from local testing to Docker:
-
-```bash
-cd /home/maheshkumar/projects/CLG_VTS
-docker compose stop backend frontend vts-device-simulator
-docker compose up -d --build
-```
-
-Completely clean restart:
-
-```bash
-cd /home/maheshkumar/projects/CLG_VTS
-docker compose down
-docker compose up -d --build
-```
-
-Start only selected services:
-
-```bash
-docker compose up -d postgres mosquitto redis temporal temporal-ui
-docker compose up -d backend
-docker compose up -d frontend vts-device-simulator
-```
-
-Run in foreground:
-
-```bash
-docker compose up
-```
-
-## Stop Commands
-
-Stop all running containers without removing them:
-
-```bash
-docker compose stop
-```
-
-Stop one service:
-
-```bash
-docker compose stop backend
-docker compose stop frontend
-docker compose stop vts-device-simulator
-```
-
-Restart a service:
-
-```bash
-docker compose restart backend
-docker compose restart frontend
-docker compose restart vts-device-simulator
-```
-
-## Remove Containers
-
-Stop and remove the project containers and network:
-
-```bash
-docker compose down
-```
-
-Stop and remove project containers, network, and volumes:
-
-```bash
-docker compose down -v
-```
-
-Remove project containers and also remove orphan containers:
-
-```bash
-docker compose down --remove-orphans
-```
-
-## Delete Unused Docker Resources
-
-Delete stopped containers:
-
-```bash
-docker container prune -f
-```
-
-Delete unused images:
-
-```bash
-docker image prune -f
-```
-
-Delete unused volumes:
-
-```bash
-docker volume prune -f
-```
-
-Delete unused networks:
-
-```bash
-docker network prune -f
-```
-
-Delete everything unused:
-
-```bash
-docker system prune -f
-```
-
-Delete everything unused including volumes:
-
-```bash
-docker system prune -a --volumes -f
-```
-
-## Logs And Status
-
-See running services:
-
-```bash
-docker compose ps
-```
-
-See logs for all services:
-
-```bash
-docker compose logs -f
-```
-
-See logs for one service:
-
-```bash
+docker compose logs
 docker compose logs -f backend
 docker compose logs -f frontend
-docker compose logs -f vts-device-simulator
 ```
 
-## Shell Access
-
-Open a shell in a running container:
+Stop and remove containers:
 
 ```bash
-docker compose exec backend sh
-docker compose exec frontend sh
-docker compose exec vts-device-simulator sh
+docker compose down
 ```
 
-## Notes About Networking
-
-- The browser reaches the backend through `localhost:3000`
-- The browser reaches the frontend through `localhost:5173`
-- The browser reaches the simulator through `localhost:3011`
-- Containers reach each other through Compose service names such as `postgres`, `mosquitto`, and `backend`
-
-Simulator transport behavior:
-
-- local `npm` testing uses `localhost` or `127.0.0.1`
-- Docker `vts-device-simulator` uses Compose service names internally
-- the simulator still loads assigned devices from Postgres and publishes the same telemetry contract
-- the MQTT topic stays `vts/devices/<device_id>/telemetry` in both local and Docker flows
-
-## Local Testing Before Docker
-
-Recommended pattern:
-
-1. run infra first with `docker compose up -d postgres mosquitto redis temporal temporal-ui`
-2. test backend locally with `npm run start:dev`
-3. test frontend locally with `npm run dev`
-4. test simulator locally with `npm run server` and `npm run dev`
-5. once local validation passes, stop those local app terminals
-6. then run `docker compose up -d --build`
-
-If local testing worked, Docker should follow the same application flow. The main difference is only the network addresses:
-
-- local app processes use `localhost`
-- Docker containers use service names
-- AWS Docker deployment follows the same Compose networking model from inside the containers
-
-## Changing The Host Used In Built Frontend URLs
-
-The Compose file supports `PUBLIC_HOST`.
-
-Example:
+Rebuild after code changes:
 
 ```bash
-PUBLIC_HOST=192.168.31.41 docker compose up -d --build
+git pull
+docker compose build
+docker compose up -d
 ```
 
-This updates the built frontend and simulator browser URLs to use that host instead of `localhost`.
+## Optional Simulator
+
+Build and start the simulator only when needed:
+
+```bash
+docker compose --profile simulator build vts-device-simulator
+docker compose --profile simulator up -d vts-device-simulator
+```
+
+By default the simulator binds to `127.0.0.1:${SIMULATOR_PORT:-3011}`, so it is not publicly exposed.
+
+## Verification
+
+Frontend:
+
+- open `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}`
+
+Backend health through nginx:
+
+```bash
+curl http://127.0.0.1:${FRONTEND_PORT:-80}/api/health
+```
+
+Frontend container health:
+
+```bash
+curl http://127.0.0.1:${FRONTEND_PORT:-80}/health
+```
+
+Database connectivity:
+
+```bash
+docker compose exec postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+```
+
+MQTT connectivity:
+
+```bash
+docker compose exec backend node -e "require('mqtt').connect('mqtt://mosquitto:1883').on('connect', client => { console.log('mqtt-ok'); client.end(); })"
+```
+
+WebSocket updates:
+
+- open the dashboard in a browser
+- start the simulator profile
+- publish telemetry from the simulator
+- confirm live updates arrive without a page refresh
+
+## Low-Memory Guidance For `t3.micro`
+
+Repo-level hardening included in this deployment path:
+
+- `npm ci` in all Docker builds
+- app-level `.dockerignore` files
+- multi-stage frontend and simulator images
+- static nginx frontend runtime
+- Temporal disabled by default
+- optional simulator profile
+- Redis removed from the default stack
+
+Preferred low-load build order:
+
+```bash
+docker compose build backend
+docker compose build frontend
+docker compose up -d
+```
+
+If you also need the simulator:
+
+```bash
+docker compose --profile simulator build vts-device-simulator
+docker compose --profile simulator up -d vts-device-simulator
+```
+
+If builds still OOM, add swap before rebuilding:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+free -h
+```
+
+## Security And Exposure
+
+Default public exposure:
+
+- frontend HTTP only
+
+Default internal-only services:
+
+- PostgreSQL
+- Mosquitto
+- backend HTTP
+- backend TCP/UDP ingestion ports
+- simulator
+
+Only publish backend, MQTT, or simulator ports if something outside Docker truly needs them. If you do expose them, keep the AWS security group restricted to the minimum source IPs and ports.
+
+## Troubleshooting
+
+Backend never becomes healthy:
+
+- run `docker compose logs -f backend`
+- confirm `.env` values for `DB_PASSWORD` and `JWT_SECRET`
+- confirm PostgreSQL is healthy
+- confirm Mosquitto is healthy
+
+Frontend loads but API calls fail:
+
+- run `docker compose logs -f frontend backend`
+- confirm `VITE_API_BASE_URL=/api`
+- confirm `/api/health` returns `200`
+
+Simulator does not publish:
+
+- start it with the `simulator` profile
+- run `docker compose --profile simulator logs -f vts-device-simulator`
+- confirm the simulator health endpoint shows `mqtt.connected: true`
+
+Builds fail on low memory:
+
+- build one image at a time
+- enable swap
+- run `docker system df`
+
+## Rollback
+
+Roll back to a previous git revision:
+
+```bash
+git log --oneline -n 5
+git checkout <previous-commit>
+docker compose build
+docker compose up -d
+```
+
+Return to the main branch when you are ready:
+
+```bash
+git checkout <branch-name>
+```

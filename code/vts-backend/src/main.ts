@@ -9,9 +9,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule)
   const configService = app.get(ConfigService)
   const corsOriginsRaw = configService.get<string>('CORS_ORIGINS')
+  const apiPrefix = configService.get<string>('API_PREFIX')?.trim().replace(/^\/+|\/+$/g, '')
   const corsOrigins = corsOriginsRaw
     ? corsOriginsRaw.split(',').map((origin) => origin.trim()).filter(Boolean)
-    : ['http://localhost:5173', 'http://localhost:3011']
+    : [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3011',
+        'http://127.0.0.1:3011',
+      ]
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -21,9 +27,8 @@ async function bootstrap() {
     }),
   )
 
-  const prefix = configService.get<string>('API_PREFIX')
-  if (prefix) {
-    app.setGlobalPrefix(prefix)
+  if (apiPrefix) {
+    app.setGlobalPrefix(apiPrefix)
   }
 
   app.enableCors({
@@ -47,10 +52,9 @@ async function bootstrap() {
     .build()
 
   const document = SwaggerModule.createDocument(app, swaggerConfig)
-  SwaggerModule.setup('api/docs', app, document)
+  SwaggerModule.setup(apiPrefix ? `${apiPrefix}/docs` : 'api/docs', app, document)
 
   const port = configService.get<number>('PORT', 3000)
-  // await app.listen(port)
   await app.listen(port, '0.0.0.0')
 }
 

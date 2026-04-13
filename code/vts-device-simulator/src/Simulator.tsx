@@ -73,17 +73,17 @@ export default function Simulator() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [transport, setTransport] = useState<TransportState>({
     protocol: 'mqtt',
-    host: '127.0.0.1',
-    port: 4001,
+    host: 'backend',
+    port: 4002,
   });
   const [transportDefaults, setTransportDefaults] = useState<TransportDefaults>({
     tcp: {
-      host: '127.0.0.1',
-      port: 4001,
+      host: 'backend',
+      port: 4002,
     },
     udp: {
-      host: '127.0.0.1',
-      port: 4002,
+      host: 'backend',
+      port: 4001,
     },
   });
   const timerRef = useRef<number | null>(null);
@@ -97,7 +97,7 @@ export default function Simulator() {
   const [publisherStatus, setPublisherStatus] = useState<'idle' | 'ready' | 'disconnected'>('idle');
   const [publisherError, setPublisherError] = useState('');
   const [mqttConnected, setMqttConnected] = useState(false);
-  const [mqttBrokerUrl, setMqttBrokerUrl] = useState('mqtt://localhost:1883');
+  const [mqttBrokerUrl, setMqttBrokerUrl] = useState('mqtt://mosquitto:1883');
   const [stage, setStage] = useState<'setup' | 'game'>('setup');
   const drivingRef = useRef(false);
   const sendingRef = useRef(false);
@@ -105,8 +105,8 @@ export default function Simulator() {
   const telemetryTopic = useMemo(
     () =>
       state.deviceId.trim()
-        ? `${MQTT_TOPIC_PREFIX}/devices/${state.deviceId.trim()}/telemetry`
-        : `${MQTT_TOPIC_PREFIX}/devices/{device_id}/telemetry`,
+        ? `${MQTT_TOPIC_PREFIX}/${state.deviceId.trim()}/telemetry`
+        : `${MQTT_TOPIC_PREFIX}/{device_id}/telemetry`,
     [state.deviceId],
   );
   const transportSummary = useMemo(() => {
@@ -267,7 +267,7 @@ export default function Simulator() {
         transport.protocol === 'mqtt'
           ? {
               protocol: 'mqtt',
-              topic: `${MQTT_TOPIC_PREFIX}/devices/${snapshot.deviceId}/telemetry`,
+              topic: `${MQTT_TOPIC_PREFIX}/${snapshot.deviceId}/telemetry`,
               payload,
             }
           : {

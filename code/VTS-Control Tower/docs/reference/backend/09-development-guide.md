@@ -2,17 +2,17 @@
 
 ## Prerequisites
 - Node.js 20+
-- Docker + Docker Compose (for PostgreSQL)
+- Docker + Docker Compose (for PostgreSQL and Mosquitto)
 
 ## Install (backend)
 ```bash
 cd vts-backend
-npm install
+npm ci
 ```
 
-## Run database (PostgreSQL only)
+## Run shared infra
 ```bash
-docker compose up -d
+docker compose up -d postgres mosquitto
 ```
 
 ## Start backend (local)
@@ -23,7 +23,7 @@ npm run start:dev
 ## Start frontend (local)
 ```bash
 cd ../vts-frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -34,8 +34,8 @@ Run a local Mosquitto broker or a separate container, then set:
 ## Device simulator (MQTT)
 ```bash
 cd ../vts-device-simulator
-npm install
-node simulator.js
+npm ci
+npm run server
 ```
 
 ## Migrations
@@ -51,4 +51,4 @@ A default admin user is seeded on startup (see `UsersSeeder`).
 ## Notes
 - Ensure `.env` is present in `vts-backend`.
 - JWT is required for protected endpoints.
-- Temporal is optional but the backend expects a server at `TEMPORAL_ADDRESS` unless the module is removed.
+- Temporal is optional and should stay disabled unless you explicitly set `TEMPORAL_ENABLED=true`.

@@ -1,37 +1,27 @@
-# FROM node:20-alpine
-
-# WORKDIR /app
-
-# COPY package*.json ./
-# RUN npm install
-
-# COPY tsconfig*.json ./
-# COPY nest-cli.json ./
-# COPY src ./src
-
-# RUN npm run build
-
-# EXPOSE 3000
-
-# CMD ["node", "dist/main.js"]
-
-#for public release
-FROM node:20-alpine
+FROM node:20.19-alpine AS build
 
 WORKDIR /app
 
+ENV CI=true \
+    npm_config_update_notifier=false
+
 COPY package*.json ./
+RUN npm ci
 
-# Install ALL deps (including dev)
-RUN npm install
+COPY nest-cli.json tsconfig.json ./
+COPY src ./src
 
-COPY . .
+RUN npm run build && npm prune --omit=dev
 
-# Build project
-RUN npm run build
+FROM node:20.19-alpine AS runtime
 
-# Remove dev dependencies (optional optimization)
-RUN npm prune --omit=dev
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package*.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
 
 EXPOSE 3000
 

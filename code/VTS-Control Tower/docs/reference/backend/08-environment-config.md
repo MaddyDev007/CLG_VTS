@@ -7,6 +7,7 @@ All variables are read from `.env` (local) or process environment.
 | --- | --- |
 | NODE_ENV | Environment name (development/production) |
 | PORT | HTTP server port (default 3000) |
+| API_PREFIX | Optional route prefix. Docker deployment uses `api`. |
 
 ## Database
 | Variable | Description |
@@ -39,4 +40,12 @@ All variables are read from `.env` (local) or process environment.
 ## Temporal (optional)
 | Variable | Description |
 | --- | --- |
-| TEMPORAL_ADDRESS | Temporal frontend address (default: localhost:7233) |
+| TEMPORAL_ENABLED | Set to `true` only when a Temporal server is available |
+| TEMPORAL_ADDRESS | Temporal frontend address when Temporal is enabled |
+
+## Telemetry state storage (optional)
+| Variable | Description |
+| --- | --- |
+| TELEMETRY_STATE_STORE | `memory` or `redis` |
+| REDIS_URL | Redis connection string when `TELEMETRY_STATE_STORE=redis` |
+| REDIS_STATE_TTL_SECONDS | TTL for telemetry runtime state |

@@ -38,12 +38,12 @@ type AssignedDevice = {
 };
 
 const port = Number(process.env.SIMULATOR_SERVER_PORT ?? 3011);
-const postgresUrl = process.env.POSTGRES_URL ?? 'postgres://postgres:vts123@localhost:5432/vts';
-const mqttBrokerUrl = process.env.MQTT_BROKER_URL ?? 'mqtt://localhost:1883';
-const tcpHost = process.env.SIM_TCP_HOST ?? '127.0.0.1';
-const tcpPort = Number(process.env.SIM_TCP_PORT ?? 4001);
-const udpHost = process.env.SIM_UDP_HOST ?? '127.0.0.1';
-const udpPort = Number(process.env.SIM_UDP_PORT ?? 4002);
+const postgresUrl = process.env.POSTGRES_URL ?? 'postgres://postgres:vts123@postgres:5432/vts';
+const mqttBrokerUrl = process.env.MQTT_BROKER_URL ?? 'mqtt://mosquitto:1883';
+const tcpHost = process.env.SIM_TCP_HOST ?? 'backend';
+const tcpPort = Number(process.env.SIM_TCP_PORT ?? 4002);
+const udpHost = process.env.SIM_UDP_HOST ?? 'backend';
+const udpPort = Number(process.env.SIM_UDP_PORT ?? 4001);
 const defaultProtocol = ((process.env.SIM_PROTOCOL ?? 'mqtt').toLowerCase() as TransportProtocol);
 const clientDist = fileURLToPath(new URL('../dist', import.meta.url));
 const clientIndex = resolve(clientDist, 'index.html');
@@ -226,6 +226,6 @@ mqttClient.on('error', (error) => {
   console.error(`[vts-device-simulator] MQTT error: ${error.message}`);
 });
 
-app.listen(port, () => {
-  console.log(`[vts-device-simulator] listening on http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`[vts-device-simulator] listening on 0.0.0.0:${port}`);
 });

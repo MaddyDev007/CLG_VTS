@@ -22,6 +22,7 @@ import { CollegeScopeMiddleware } from './common/tenant/college-scope.middleware
 import { CollegesModule } from './modules/colleges/colleges.module'
 import { RolesGuard } from './common/guards/roles.guard'
 import { IngestionModule } from './ingestion/ingestion.module'
+import { HealthController } from './health.controller'
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { IngestionModule } from './ingestion/ingestion.module'
     WebsocketModule,
     TemporalModule,
   ],
+  controllers: [HealthController],
   providers: [RolesGuard],
 })
 export class AppModule implements NestModule {

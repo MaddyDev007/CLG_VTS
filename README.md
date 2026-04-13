@@ -1,18 +1,22 @@
 # CLG VTS
 
-This repository now uses a single repo-level Docker Compose setup for all runnable projects except `Firmware`.
+This repository is deployable from a single repo-level Docker Compose setup for all runnable projects except `Firmware`.
 
 Containerized projects:
 - `code/vts-backend`
 - `code/vts-frontend`
 - `code/vts-device-simulator`
 
-Supporting containers:
+Default infrastructure:
 - PostgreSQL
 - Mosquitto
-- Redis
-- Temporal
-- Temporal UI
+
+Optional runtime:
+- `vts-device-simulator` via the `simulator` profile
+
+Backend behavior:
+- Redis-backed telemetry state is optional and defaults to in-memory mode
+- Temporal is optional and disabled by default on EC2
 
 The shared orchestration file lives at [docker-compose.yml](/home/maheshkumar/projects/CLG_VTS/docker-compose.yml).
 

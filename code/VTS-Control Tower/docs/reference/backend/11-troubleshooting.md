@@ -22,8 +22,8 @@
 
 ## Temporal connection refused
 **Error:** `connection error: dial tcp 127.0.0.1:7233`.
-- Start a Temporal server or set `TEMPORAL_ADDRESS` to a reachable host.
-- If not using Temporal, remove `TemporalModule` from `AppModule`.
+- Leave `TEMPORAL_ENABLED=false` unless you really need Temporal.
+- If you do enable it, set `TEMPORAL_ADDRESS` to a reachable host.
 
 ## MQTT not receiving data
 - Confirm broker URL and topic:
@@ -32,7 +32,7 @@
 - Check broker logs and device publish topic.
 
 ## WebSocket updates not received
-- Ensure frontend connects to `ws://<host>:3000/telemetry`.
+- Ensure frontend connects to `/telemetry` or the correct proxied WebSocket origin.
 - Listen for `vehicle-update` event.
 
 ## Migrations not applied

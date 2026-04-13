@@ -1,6 +1,8 @@
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets'
 import { Server } from 'socket.io'
 
+const websocketNamespace = process.env.WS_NAMESPACE || '/telemetry'
+
 type VehicleUpdatePayload = {
   vehicleId: string
   lat: number
@@ -23,7 +25,13 @@ type NotificationPayload = {
   read: boolean
 }
 
-@WebSocketGateway({ namespace: '/telemetry', cors: { origin: '*' } })
+@WebSocketGateway({
+  namespace: websocketNamespace,
+  cors: {
+    origin: true,
+    credentials: true,
+  },
+})
 export class TelemetryGateway {
   @WebSocketServer()
   server!: Server

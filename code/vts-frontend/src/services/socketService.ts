@@ -49,7 +49,7 @@ class SocketService {
       return this.normalizeSocketUrl(`${env.apiBaseUrl}/telemetry`)
     }
 
-    return 'http://localhost:3000/telemetry'
+    return '/telemetry'
   }
 
   private acquireSocket(): Socket {

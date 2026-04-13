@@ -60,6 +60,10 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     this.client?.end()
   }
 
+  isConnected() {
+    return Boolean(this.client?.connected)
+  }
+
   async publish(topic: string, payload: string): Promise<void> {
     if (!this.client || !this.client.connected) {
       throw new Error('MQTT client is not connected')

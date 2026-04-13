@@ -1,147 +1,153 @@
 services:
   postgres:
-    image: postgres:15
-    container_name: vts-postgres
+    image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: vts
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: vts123
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-vts}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vts123}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - vts_app
 
   mosquitto:
     image: eclipse-mosquitto:2
-    container_name: vts-mosquitto
     restart: unless-stopped
-    ports:
-      - "1883:1883"
-      - "9001:9001"
     volumes:
       - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
-
-  redis:
-    image: redis:7-alpine
-    container_name: vts-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-
-  temporal:
-    image: temporalio/auto-setup:1.23
-    container_name: vts-temporal
-    restart: unless-stopped
-    ports:
-      - "7233:7233"
-    environment:
-      DB: postgresql
-      DB_PORT: 5432
-      POSTGRES_USER: postgres
-      POSTGRES_PWD: vts123
-      POSTGRES_SEEDS: postgres
-    depends_on:
-      - postgres
-
-  temporal-ui:
-    image: temporalio/ui:latest
-    container_name: vts-temporal-ui
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      TEMPORAL_ADDRESS: temporal:7233
-    depends_on:
-      - temporal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mosquitto_sub -h 127.0.0.1 -p 1883 -t '$$SYS/broker/version' -C 1 -W 3 >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - vts_app
 
   backend:
     build:
       context: ./code/vts-backend
       dockerfile: Dockerfile
-    container_name: vts-backend
     restart: unless-stopped
     env_file:
-      - ./code/vts-backend/.env.docker
+      - ./docker/env/backend.env
     environment:
-      NODE_ENV: development
-      PORT: 3000
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: vts
-      DB_USER: postgres
-      DB_PASSWORD: vts123
+      DB_NAME: ${POSTGRES_DB:-vts}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-vts123}
       MQTT_BROKER_URL: mqtt://mosquitto:1883
-      MQTT_TELEMETRY_TOPIC: vts/devices/+/telemetry
-      UDP_PORT: 4001
-      TCP_PORT: 4002
-      TCP_HOST: 0.0.0.0
-      TEMPORAL_ADDRESS: temporal:7233
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_URL: redis://redis:6379
-      CORS_ORIGINS: http://${PUBLIC_HOST:-localhost}:5173,http://${PUBLIC_HOST:-localhost}:3011
-    ports:
-      - "3000:3000"
-      - "4001:4001/udp"
-      - "4002:4002"
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET:-change-me-before-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://127.0.0.1}
+      TEMPORAL_ENABLED: ${TEMPORAL_ENABLED:-false}
+      TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-}
+      REDIS_URL: ${REDIS_URL:-}
+    expose:
+      - "3000"
+      - "4001/udp"
+      - "4002"
     depends_on:
-      - postgres
-      - redis
-      - mosquitto
-      - temporal
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
     healthcheck:
       test:
         [
           "CMD",
           "node",
           "-e",
-          "require('http').get('http://localhost:3000/api/docs', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+          "fetch('http://127.0.0.1:3000/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
         ]
-      interval: 30s
-      timeout: 10s
+      interval: 15s
+      timeout: 5s
       retries: 5
+      start_period: 40s
+    networks:
+      - vts_app
 
   frontend:
     build:
       context: ./code/vts-frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://${PUBLIC_HOST:-localhost}:3000
-        VITE_WS_URL: ws://${PUBLIC_HOST:-localhost}:3000
-    container_name: vts-frontend
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_WS_URL: ${VITE_WS_URL:-/telemetry}
+        NODE_OPTIONS: ${FRONTEND_NODE_OPTIONS:---max-old-space-size=256}
     restart: unless-stopped
     ports:
-      - "5173:80"
+      - "${FRONTEND_BIND_ADDRESS:-0.0.0.0}:${FRONTEND_PORT:-80}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - vts_app
 
   vts-device-simulator:
+    profiles:
+      - simulator
     build:
       context: ./code/vts-device-simulator
       dockerfile: Dockerfile
       args:
-        VITE_DEVICE_SIMULATOR_URL: http://${PUBLIC_HOST:-localhost}:3011
-        VITE_MQTT_TOPIC_PREFIX: vts
-    container_name: vts-device-simulator
+        VITE_DEVICE_SIMULATOR_URL: ${VITE_DEVICE_SIMULATOR_URL:-}
+        VITE_MQTT_TOPIC_PREFIX: ${VITE_MQTT_TOPIC_PREFIX:-vts}
+        NODE_OPTIONS: ${SIMULATOR_NODE_OPTIONS:---max-old-space-size=256}
     restart: unless-stopped
+    env_file:
+      - ./docker/env/simulator.env
     environment:
-      SIMULATOR_SERVER_PORT: 3011
-      POSTGRES_URL: postgres://postgres:vts123@postgres:5432/vts
+      POSTGRES_URL: postgres://${POSTGRES_USER:-postgres}:${DB_PASSWORD:-vts123}@postgres:5432/${POSTGRES_DB:-vts}
       MQTT_BROKER_URL: mqtt://mosquitto:1883
-      SIM_PROTOCOL: mqtt
-      SIM_TCP_HOST: backend
-      SIM_TCP_PORT: 4002
-      SIM_UDP_HOST: backend
-      SIM_UDP_PORT: 4001
     ports:
-      - "3011:3011"
+      - "${SIMULATOR_BIND_ADDRESS:-127.0.0.1}:${SIMULATOR_PORT:-3011}:3011"
     depends_on:
-      - postgres
-      - mosquitto
-      - backend
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3011/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - vts_app
+
+networks:
+  vts_app:
+    name: vts_app
 
 volumes:
   postgres_data:
