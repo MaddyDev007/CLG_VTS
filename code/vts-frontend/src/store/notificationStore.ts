@@ -11,10 +11,11 @@ type NotificationStoreState = {
 
 type NotificationStoreActions = {
   loadNotifications: () => Promise<void>
-  addNotification: (notification?: Notification) => Promise<void>
+  refreshNotifications: (options?: { reset?: boolean }) => Promise<void>
   markAsRead: (notificationId: string) => Promise<void>
   markAllAsRead: () => Promise<void>
   dismissToast: (notificationId: string) => void
+  reset: () => void
 }
 
 type NotificationStore = NotificationStoreState & NotificationStoreActions
@@ -42,31 +43,17 @@ export const useNotificationStore = create<NotificationStore>()((set) => ({
     })
   },
 
-  addNotification: async (notification) => {
-    if (!notification) {
-      return
-    }
-
-    const nextNotification = notification
-
+  refreshNotifications: async (options) => {
+    const notifications = await notificationService.getNotifications({ page: 1, limit: 50 })
     set((state) => {
-      const existingNotification = state.notifications.find((item) => item.id === nextNotification.id)
-      const notifications = existingNotification
-        ? state.notifications.map((item) => (item.id === nextNotification.id ? nextNotification : item))
-        : [nextNotification, ...state.notifications]
-      const toasts = existingNotification
-        ? state.toasts
-        : [nextNotification, ...state.toasts].slice(0, 5)
-      const unreadCount = existingNotification
-        ? countUnread(notifications)
-        : nextNotification.read
-          ? state.unreadCount
-          : state.unreadCount + 1
+      const previousIds = new Set(options?.reset ? [] : state.notifications.map((item) => item.id))
+      const newToasts = notifications.filter((item) => !item.read && !previousIds.has(item.id))
 
       return {
         notifications,
-        toasts,
-        unreadCount,
+        toasts: options?.reset ? [] : [...newToasts, ...state.toasts].slice(0, 5),
+        unreadCount: countUnread(notifications),
+        isLoaded: true,
       }
     })
   },
@@ -108,4 +95,6 @@ export const useNotificationStore = create<NotificationStore>()((set) => ({
       toasts: state.toasts.filter((item) => item.id !== notificationId),
     }))
   },
+
+  reset: () => set({ ...initialState }),
 }))

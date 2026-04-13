@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { FiX } from 'react-icons/fi'
 import { deviceService } from '@services/deviceService'
 import { vehicleService } from '@services/vehicleService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { Device } from '../../types/device'
 import type { VehicleType } from '../../types/vehicle'
 
@@ -20,6 +21,7 @@ export function AddVehicleModal({ isOpen, onClose, onSuccess }: AddVehicleModalP
   const [devices, setDevices] = useState<Device[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const syncVersion = useScopedDataSyncVersion(['devices', 'vehicles'])
 
   const createdAt = useMemo(() => new Date().toISOString(), [isOpen])
   const updatedAt = useMemo(() => new Date().toISOString(), [isOpen])
@@ -35,7 +37,7 @@ export function AddVehicleModal({ isOpen, onClose, onSuccess }: AddVehicleModalP
     }
 
     void loadDevices()
-  }, [isOpen])
+  }, [isOpen, syncVersion])
 
   useEffect(() => {
     if (!isOpen) {

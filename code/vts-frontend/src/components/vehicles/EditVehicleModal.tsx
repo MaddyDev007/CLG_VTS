@@ -3,6 +3,7 @@ import { FiX } from 'react-icons/fi'
 import { deviceService } from '@services/deviceService'
 import { vehicleService } from '@services/vehicleService'
 import { routeService } from '@services/routeService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { Device } from '../../types/device'
 import type { Route } from '../../types/route'
 import type { Vehicle, VehicleType } from '../../types/vehicle'
@@ -26,6 +27,7 @@ export function EditVehicleModal({ vehicle, isOpen, onClose, onSuccess }: EditVe
   const [routes, setRoutes] = useState<Route[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const syncVersion = useScopedDataSyncVersion(['devices', 'routes', 'vehicles'])
 
   useEffect(() => {
     if (!isOpen || !vehicle) {
@@ -38,7 +40,7 @@ export function EditVehicleModal({ vehicle, isOpen, onClose, onSuccess }: EditVe
     setRouteId(vehicle.routeId ?? '')
     setSpeedLimit(String(vehicle.speedLimit ?? 75))
     setError('')
-  }, [isOpen, vehicle])
+  }, [isOpen, vehicle, syncVersion])
 
   useEffect(() => {
     if (!isOpen) {

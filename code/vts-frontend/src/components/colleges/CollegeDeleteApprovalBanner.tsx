@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { collegeService, type CollegeSummary } from '@services/collegeService'
 import { useAuthStore } from '@store/authStore'
+import { GLOBAL_SCOPE_KEY, useScopedDataSyncVersion } from '@store/dataSyncStore'
 
 export function CollegeDeleteApprovalBanner() {
   const navigate = useNavigate()
@@ -12,6 +13,7 @@ export function CollegeDeleteApprovalBanner() {
   const [isApproving, setIsApproving] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
   const [error, setError] = useState('')
+  const syncVersion = useScopedDataSyncVersion(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
 
   useEffect(() => {
     if (role !== 'COLLEGE_ADMIN') {
@@ -33,7 +35,7 @@ export function CollegeDeleteApprovalBanner() {
     }
 
     void loadCollege()
-  }, [role])
+  }, [role, syncVersion])
 
   if (role !== 'COLLEGE_ADMIN' || isLoading || college?.status !== 'delete_pending') {
     return error ? (

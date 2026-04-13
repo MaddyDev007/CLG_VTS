@@ -6,8 +6,10 @@ import { RecentActivities } from '@components/dashboard/RecentActivities'
 import { DashboardLayout } from '@components/layout/DashboardLayout'
 import { StatCard } from '@components/ui/StatCard'
 import { WelcomeCard } from '@components/ui/WelcomeCard'
-import { socketService } from '@services/socketService'
+import { useVehicleSocket } from '@hooks/useVehicleSocket'
 import { useAuthStore } from '@store/authStore'
+import { useCollegeFilterStore } from '@store/collegeFilterStore'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { deriveVehicleStatusCounts, mergeVehicleSocketPayload } from '@utils/vehicleRealtime'
 import { useNavigate } from 'react-router-dom'
 import { vehicleService } from '@services/vehicleService'
@@ -72,59 +74,40 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const role = useAuthStore((state) => state.role)
+  const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
+  const syncVersion = useScopedDataSyncVersion(['vehicles', 'notifications'])
 
   const [fleet, setFleet] = useState<Vehicle[]>([])
   const [activities, setActivities] = useState<ActivityItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   const isSuperAdmin = role === 'SUPER_ADMIN'
 
   useEffect(() => {
-    const loadFleet = async () => {
-      const nextFleet = await vehicleService.getVehicles({ page: 1, limit: 500 })
-      setFleet(nextFleet)
-    }
+    const loadDashboard = async () => {
+      setIsLoading(true)
+      setFleet([])
+      setActivities([])
 
-    const loadActivities = async () => {
-      const notifications = await notificationService.getNotifications({ page: 1, limit: 10 })
-      setActivities(
-        notifications
-          .slice(0, 10)
-          .map((notification) => mapNotificationToActivity(notification)),
-      )
-    }
+      try {
+        const [nextFleet, notifications] = await Promise.all([
+          vehicleService.getVehicles({ page: 1, limit: 500 }),
+          notificationService.getNotifications({ page: 1, limit: 10 }),
+        ])
 
-    void loadFleet()
-    void loadActivities()
-  }, [])
-
-  useEffect(() => {
-    const unsubscribeVehicleUpdates = socketService.subscribeToVehicleUpdates((payload) => {
-      if (isSuperAdmin) {
-        void vehicleService.getVehicles({ page: 1, limit: 500 }).then(setFleet)
-        return
+        setFleet(nextFleet)
+        setActivities(notifications.slice(0, 10).map((notification) => mapNotificationToActivity(notification)))
+      } finally {
+        setIsLoading(false)
       }
-
-      setFleet((currentFleet) => mergeVehicleSocketPayload(currentFleet, payload))
-    })
-
-    const unsubscribeNotifications = socketService.subscribeToNotifications((notification) => {
-      if (isSuperAdmin) {
-        void notificationService
-          .getNotifications({ page: 1, limit: 10 })
-          .then((notifications) => setActivities(notifications.slice(0, 10).map(mapNotificationToActivity)))
-        return
-      }
-
-      setActivities((currentActivities) =>
-        [mapNotificationToActivity(notification), ...currentActivities.filter((item) => item.id !== notification.id)].slice(0, 10),
-      )
-    })
-
-    return () => {
-      unsubscribeVehicleUpdates()
-      unsubscribeNotifications()
     }
-  }, [isSuperAdmin])
+
+    void loadDashboard()
+  }, [selectedCollegeId, syncVersion])
+
+  useVehicleSocket((payload) => {
+    setFleet((currentFleet) => mergeVehicleSocketPayload(currentFleet, payload))
+  })
 
   const counts = useMemo(() => deriveVehicleStatusCounts(fleet), [fleet])
   const stoppedCount = useMemo(() => counts.stopped ?? 0, [counts])
@@ -156,6 +139,12 @@ export function DashboardPage() {
             ) : null
           }
         />
+
+        {isLoading ? (
+          <section className='rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300'>
+            Loading dashboard data...
+          </section>
+        ) : null}
 
         <section className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5'>
           <button type='button' onClick={() => navigate('/vehicles')} className='text-left'>

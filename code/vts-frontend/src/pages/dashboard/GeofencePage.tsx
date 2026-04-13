@@ -7,6 +7,7 @@ import { GeofenceList } from '@components/geofence/GeofenceList'
 import { GeofenceMap } from '@components/map/GeofenceMap'
 import { geofenceService } from '@services/geofenceService'
 import { useAuthStore } from '@store/authStore'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { canCreate, canDelete, canEdit } from '@utils/permissions'
 import type { Geofence } from '../../types/geofence'
 
@@ -21,6 +22,7 @@ export function GeofencePage() {
   const [editingGeofence, setEditingGeofence] = useState<Geofence | null>(null)
   const [deletingGeofence, setDeletingGeofence] = useState<Geofence | null>(null)
   const [selectedGeofence, setSelectedGeofence] = useState<Geofence | null>(null)
+  const syncVersion = useScopedDataSyncVersion(['geofences', 'vehicles'])
 
   const loadGeofences = async () => {
     setIsLoading(true)
@@ -40,7 +42,7 @@ export function GeofencePage() {
 
   useEffect(() => {
     void loadGeofences()
-  }, [])
+  }, [syncVersion])
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-5'>

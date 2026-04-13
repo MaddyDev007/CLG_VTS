@@ -7,6 +7,7 @@ import { VehicleCard } from '@components/vehicles/VehicleCard'
 import { useVehicleSocket } from '@hooks/useVehicleSocket'
 import { vehicleService } from '@services/vehicleService'
 import { useAuthStore } from '@store/authStore'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { mergeVehicleSocketPayload } from '@utils/vehicleRealtime'
 import { canCreate } from '@utils/permissions'
 import type { Vehicle, VehicleStatus } from '../../types/vehicle'
@@ -26,7 +27,8 @@ export function VehiclesPage() {
   const [total, setTotal] = useState(0)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const refreshTimeoutRef = useRef<number | null>(null)
+  const visibleVehicleIdsRef = useRef<Set<string>>(new Set())
+  const syncVersion = useScopedDataSyncVersion(['vehicles', 'devices', 'routes'])
 
   const initialStatusFilter = useMemo<'all' | VehicleStatus>(() => {
     const status = searchParams.get('status')
@@ -65,28 +67,19 @@ export function VehiclesPage() {
 
   useEffect(() => {
     void loadVehicles()
-  }, [loadVehicles])
+  }, [loadVehicles, syncVersion])
+
+  useEffect(() => {
+    visibleVehicleIdsRef.current = new Set(vehicles.map((vehicle) => vehicle.id))
+  }, [vehicles])
 
   useVehicleSocket((payload) => {
     setVehicles((currentVehicles) => mergeVehicleSocketPayload(currentVehicles, payload))
 
-    if (refreshTimeoutRef.current) {
-      window.clearTimeout(refreshTimeoutRef.current)
-    }
-
-    refreshTimeoutRef.current = window.setTimeout(() => {
+    if (visibleVehicleIdsRef.current.has(payload.vehicleId)) {
       void loadVehicles(false)
-      refreshTimeoutRef.current = null
-    }, 500)
-  })
-
-  useEffect(() => {
-    return () => {
-      if (refreshTimeoutRef.current) {
-        window.clearTimeout(refreshTimeoutRef.current)
-      }
     }
-  }, [])
+  })
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-5'>

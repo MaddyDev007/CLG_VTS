@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { vehicleService } from '@services/vehicleService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { batteryMvToPercent } from '@utils/telemetryFormat'
 import type { TelemetryPoint } from '../../types/vehicle'
 
@@ -19,6 +20,7 @@ export function TelemetryTable({ vehicleId, pageSize = 8 }: TelemetryTableProps)
   const [rows, setRows] = useState<TelemetryPoint[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
+  const syncVersion = useScopedDataSyncVersion(['telemetry'])
 
   useEffect(() => {
     const loadTelemetry = async () => {
@@ -30,7 +32,7 @@ export function TelemetryTable({ vehicleId, pageSize = 8 }: TelemetryTableProps)
     }
 
     void loadTelemetry()
-  }, [vehicleId])
+  }, [vehicleId, syncVersion])
 
   const totalPages = useMemo(() => {
     if (!rows.length) {

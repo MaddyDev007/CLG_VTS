@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { RoutePreviewMap } from '@components/routes/RoutePreviewMap'
 import { routeService } from '@services/routeService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { Route, RouteStop } from '../../types/route'
 import type { Vehicle } from '../../types/vehicle'
 
@@ -10,6 +11,7 @@ export function RouteDetailPage() {
   const [route, setRoute] = useState<Route | null>(null)
   const [assignedVehicles, setAssignedVehicles] = useState<Vehicle[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const syncVersion = useScopedDataSyncVersion(['routes', 'vehicles'])
 
   useEffect(() => {
     const loadRoute = async () => {
@@ -33,7 +35,7 @@ export function RouteDetailPage() {
     }
 
     void loadRoute()
-  }, [routeId])
+  }, [routeId, syncVersion])
 
   const orderedStops = useMemo<RouteStop[]>(
     () => (route ? [route.startStop, ...route.intermediateStops, route.endStop] : []),

@@ -7,6 +7,7 @@ import { RoutesTable } from '@components/routes/RoutesTable'
 import { routeService } from '@services/routeService'
 import { vehicleService } from '@services/vehicleService'
 import { useAuthStore } from '@store/authStore'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { canCreate, canDelete, canEdit } from '@utils/permissions'
 import type { Route } from '../../types/route'
 import type { Vehicle } from '../../types/vehicle'
@@ -24,6 +25,7 @@ export function RoutesPage() {
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const syncVersion = useScopedDataSyncVersion(['routes', 'vehicles'])
 
   const loadRoutes = async () => {
     setIsLoading(true)
@@ -41,7 +43,7 @@ export function RoutesPage() {
 
   useEffect(() => {
     void loadRoutes()
-  }, [])
+  }, [syncVersion])
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-5'>

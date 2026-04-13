@@ -1,4 +1,5 @@
 import { apiClient } from '../api/apiClient'
+import { GLOBAL_SCOPE_KEY, invalidateDataSync } from '@store/dataSyncStore'
 
 export type CollegeAdminSummary = {
   id: string
@@ -68,23 +69,33 @@ class CollegeService {
   }
 
   async createCollege(payload: CreateCollegeInput): Promise<CollegeMutationResponse> {
-    return apiClient.post<CollegeMutationResponse>('/colleges', payload)
+    const response = await apiClient.post<CollegeMutationResponse>('/colleges', payload)
+    invalidateDataSync(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
+    return response
   }
 
   async updateCollege(collegeId: string, payload: UpdateCollegeInput): Promise<CollegeMutationResponse> {
-    return apiClient.patch<CollegeMutationResponse>(`/colleges/${collegeId}`, payload)
+    const response = await apiClient.patch<CollegeMutationResponse>(`/colleges/${collegeId}`, payload)
+    invalidateDataSync(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
+    return response
   }
 
   async requestDeleteCollege(collegeId: string): Promise<CollegeStatusMutationResponse> {
-    return apiClient.patch<CollegeStatusMutationResponse>(`/colleges/${collegeId}/request-delete`)
+    const response = await apiClient.patch<CollegeStatusMutationResponse>(`/colleges/${collegeId}/request-delete`)
+    invalidateDataSync(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
+    return response
   }
 
   async cancelDeleteCollege(collegeId: string): Promise<CollegeStatusMutationResponse> {
-    return apiClient.patch<CollegeStatusMutationResponse>(`/colleges/${collegeId}/cancel-delete`)
+    const response = await apiClient.patch<CollegeStatusMutationResponse>(`/colleges/${collegeId}/cancel-delete`)
+    invalidateDataSync(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
+    return response
   }
 
   async deleteCollege(collegeId: string): Promise<{ success: true }> {
-    return apiClient.delete<{ success: true }>(`/colleges/${collegeId}`)
+    const response = await apiClient.delete<{ success: true }>(`/colleges/${collegeId}`)
+    invalidateDataSync(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
+    return response
   }
 }
 

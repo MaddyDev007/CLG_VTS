@@ -13,6 +13,7 @@ import { useVehicleSocket } from '@hooks/useVehicleSocket'
 import { vehicleService } from '@services/vehicleService'
 import { routeService } from '@services/routeService'
 import { useAuthStore } from '@store/authStore'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { applyVehicleSocketPayload } from '@utils/vehicleRealtime'
 import { canDelete, canEdit } from '@utils/permissions'
 import type { Trip, Vehicle } from '../../types/vehicle'
@@ -34,7 +35,8 @@ export function VehicleDetailPage() {
   const [isLoadingVehicle, setIsLoadingVehicle] = useState(true)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-  const refreshTimeoutRef = useRef<number | null>(null)
+  const latestVehicleIdRef = useRef(vehicleId)
+  const syncVersion = useScopedDataSyncVersion(['vehicles', 'routes', 'trips', 'history'])
 
   const loadVehicle = useCallback(async (showLoading = true) => {
     if (!vehicleId.trim()) {
@@ -63,8 +65,12 @@ export function VehicleDetailPage() {
   }, [vehicleId])
 
   useEffect(() => {
+    latestVehicleIdRef.current = vehicleId
+  }, [vehicleId])
+
+  useEffect(() => {
     void loadVehicle()
-  }, [loadVehicle])
+  }, [loadVehicle, syncVersion])
 
   useEffect(() => {
     if (!vehicleId.trim()) {
@@ -73,29 +79,13 @@ export function VehicleDetailPage() {
   }, [vehicleId])
 
   useVehicleSocket((payload) => {
-    if (payload.vehicleId !== vehicleId) {
+    if (payload.vehicleId !== latestVehicleIdRef.current) {
       return
     }
 
     setVehicle((currentVehicle) => (currentVehicle ? applyVehicleSocketPayload(currentVehicle, payload) : currentVehicle))
-
-    if (refreshTimeoutRef.current) {
-      window.clearTimeout(refreshTimeoutRef.current)
-    }
-
-    refreshTimeoutRef.current = window.setTimeout(() => {
-      void loadVehicle(false)
-      refreshTimeoutRef.current = null
-    }, 500)
+    void loadVehicle(false)
   })
-
-  useEffect(() => {
-    return () => {
-      if (refreshTimeoutRef.current) {
-        window.clearTimeout(refreshTimeoutRef.current)
-      }
-    }
-  }, [])
 
   const totalDistance = useMemo(
     () => trips.reduce((sum, trip) => sum + trip.distance, 0).toFixed(1),

@@ -1,6 +1,7 @@
 import type { NotificationPreferences } from '../types/profile'
 import type { UserProfile } from '../types/profile'
 import { apiClient } from '../api/apiClient'
+import { invalidateDataSync } from '@store/dataSyncStore'
 
 export type UpdatePreferencesPayload = {
   timezone: string
@@ -27,7 +28,9 @@ class ProfileService {
   }
 
   async updatePreferences(payload: UpdatePreferencesPayload): Promise<UpdatePreferencesResponse> {
-    return apiClient.patch<UpdatePreferencesResponse>('/profile/preferences', payload)
+    const response = await apiClient.patch<UpdatePreferencesResponse>('/profile/preferences', payload)
+    invalidateDataSync(['profile'])
+    return response
   }
 
   async getPreferences(): Promise<UpdatePreferencesPayload> {
@@ -35,7 +38,9 @@ class ProfileService {
   }
 
   async updateProfile(payload: UpdateProfilePayload): Promise<{ success: true }> {
-    return apiClient.patch<{ success: true }>('/profile', payload)
+    const response = await apiClient.patch<{ success: true }>('/profile', payload)
+    invalidateDataSync(['profile'])
+    return response
   }
 
   async changePassword(payload: ChangePasswordPayload): Promise<{ success: true }> {

@@ -2,6 +2,7 @@ import type { Route, RouteStop } from '../types/route'
 import type { Vehicle } from '../types/vehicle'
 import { apiClient } from '../api/apiClient'
 import { buildCollegeScopedPath, filterByActiveCollege, getActiveCollegeFilterId } from '@utils/collegeScope'
+import { invalidateDataSync } from '@store/dataSyncStore'
 
 export type DeleteRouteResponse = {
   success: true
@@ -50,18 +51,26 @@ class RouteService {
   }
 
   async createRoute(routeData: CreateRouteInput): Promise<CreateRouteResponse> {
-    return apiClient.post<CreateRouteResponse>(
+    const response = await apiClient.post<CreateRouteResponse>(
       buildCollegeScopedPath('/routes', { collegeId: routeData.collegeId ?? getActiveCollegeFilterId() }),
       routeData,
     )
+
+    invalidateDataSync(['routes', 'vehicles'])
+
+    return response
   }
 
   async updateRoute(routeId: string, updatedData: UpdateRouteInput): Promise<UpdateRouteResponse> {
-    return apiClient.patch<UpdateRouteResponse>(`/routes/${routeId}`, updatedData)
+    const response = await apiClient.patch<UpdateRouteResponse>(`/routes/${routeId}`, updatedData)
+    invalidateDataSync(['routes', 'vehicles'])
+    return response
   }
 
   async deleteRoute(routeId: string): Promise<DeleteRouteResponse> {
-    return apiClient.delete<DeleteRouteResponse>(`/routes/${routeId}`)
+    const response = await apiClient.delete<DeleteRouteResponse>(`/routes/${routeId}`)
+    invalidateDataSync(['routes', 'vehicles'])
+    return response
   }
 }
 

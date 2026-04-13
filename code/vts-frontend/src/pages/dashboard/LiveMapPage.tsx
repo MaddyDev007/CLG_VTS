@@ -6,6 +6,7 @@ import { useVehicleSocket } from '@hooks/useVehicleSocket'
 import { vehicleService } from '@services/vehicleService'
 import { routeService } from '@services/routeService'
 import { geofenceService } from '@services/geofenceService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { Vehicle } from '../../types/vehicle'
 import type { Route } from '../../types/route'
 import type { Geofence } from '../../types/geofence'
@@ -22,6 +23,7 @@ export function LiveMapPage() {
   const [mapZoom] = useState(DEFAULT_ZOOM)
   const [showRoutes, setShowRoutes] = useState(true)
   const [showGeofences, setShowGeofences] = useState(true)
+  const syncVersion = useScopedDataSyncVersion(['vehicles', 'routes', 'geofences'])
 
   const loadVehicles = useCallback(async () => {
     const nextVehicles = await vehicleService.getVehicles({ page: 1, limit: 500 })
@@ -75,11 +77,11 @@ export function LiveMapPage() {
     }
 
     void loadStaticLayers()
-  }, [])
+  }, [syncVersion])
 
   useEffect(() => {
     void loadVehicles()
-  }, [loadVehicles])
+  }, [loadVehicles, syncVersion])
 
   const handleVehicleSelect = (vehicle: Vehicle) => {
     setSelectedVehicleId(vehicle.id)

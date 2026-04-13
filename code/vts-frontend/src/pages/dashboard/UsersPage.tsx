@@ -9,6 +9,7 @@ import { collegeService, type CollegeOption } from '@services/collegeService'
 import { userService, type UserRecord } from '@services/userService'
 import { useAuthStore } from '@store/authStore'
 import { useCollegeFilterStore } from '@store/collegeFilterStore'
+import { GLOBAL_SCOPE_KEY, useScopedDataSyncVersion } from '@store/dataSyncStore'
 
 const roleLevel: Record<UserRole, number> = {
   SUPER_ADMIN: 4,
@@ -35,6 +36,8 @@ export function UsersPage() {
   const [editingUser, setEditingUser] = useState<EditableUser | null>(null)
   const [deletingUser, setDeletingUser] = useState<UserRecord | null>(null)
   const [colleges, setColleges] = useState<CollegeOption[]>([])
+  const usersSyncVersion = useScopedDataSyncVersion(['users'])
+  const collegesSyncVersion = useScopedDataSyncVersion(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
 
   const loadUsers = async () => {
     setIsLoading(true)
@@ -48,7 +51,7 @@ export function UsersPage() {
 
   useEffect(() => {
     void loadUsers()
-  }, [selectedCollegeId])
+  }, [selectedCollegeId, usersSyncVersion])
 
   useEffect(() => {
     const loadColleges = async () => {
@@ -57,7 +60,7 @@ export function UsersPage() {
     }
 
     void loadColleges()
-  }, [])
+  }, [collegesSyncVersion])
 
   const availableAssignableRoles = useMemo<AssignableRole[]>(() => {
     if (currentUserRole === 'SUPER_ADMIN') {

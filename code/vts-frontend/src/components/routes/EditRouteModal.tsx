@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { FiX } from 'react-icons/fi'
 import { routeService } from '@services/routeService'
 import { fetchStops, type Stop } from '@services/geofenceService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { Route } from '../../types/route'
 
 type EditRouteModalProps = {
@@ -20,6 +21,7 @@ export function EditRouteModal({ route, isOpen, onClose, onSuccess }: EditRouteM
   const [isLoadingStops, setIsLoadingStops] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
+  const syncVersion = useScopedDataSyncVersion(['geofences', 'routes'])
 
   useEffect(() => {
     if (!route || !isOpen) {
@@ -75,7 +77,7 @@ export function EditRouteModal({ route, isOpen, onClose, onSuccess }: EditRouteM
     return () => {
       mounted = false
     }
-  }, [isOpen, route])
+  }, [isOpen, route, syncVersion])
 
   const stopMap = useMemo(() => new Map(stops.map((stop) => [stop.id, stop])), [stops])
   const selectedStartStop = startStopId ? stopMap.get(startStopId) ?? null : null

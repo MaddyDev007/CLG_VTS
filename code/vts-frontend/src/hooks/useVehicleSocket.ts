@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { socketService, type VehicleSocketPayload } from '@services/socketService'
+import type { VehicleSocketPayload } from '@services/socketService'
+import { useRealtimeStore } from '@store/realtimeStore'
 
 export function useVehicleSocket(onVehicleUpdate: (payload: VehicleSocketPayload) => void) {
+  const vehicleUpdateVersion = useRealtimeStore((state) => state.vehicleUpdateVersion)
+  const latestPayload = useRealtimeStore((state) => state.lastVehicleUpdate)
   const handlerRef = useRef(onVehicleUpdate)
 
   useEffect(() => {
@@ -9,10 +12,10 @@ export function useVehicleSocket(onVehicleUpdate: (payload: VehicleSocketPayload
   }, [onVehicleUpdate])
 
   useEffect(() => {
-    const unsubscribe = socketService.subscribeToVehicleUpdates((payload) => {
-      handlerRef.current(payload)
-    })
+    if (!latestPayload) {
+      return
+    }
 
-    return unsubscribe
-  }, [])
+    handlerRef.current(latestPayload)
+  }, [latestPayload, vehicleUpdateVersion])
 }

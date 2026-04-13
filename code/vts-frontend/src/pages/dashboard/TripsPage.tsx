@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TripTable } from '@components/trips/TripTable'
 import { tripService } from '@services/tripService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { Trip } from '../../types/trip'
 
 type TripDateRange = 'today' | 'last_7_days' | 'last_30_days' | 'custom'
@@ -16,6 +17,7 @@ export function TripsPage() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState<TripFilterPayload>({ dateRange: 'today' })
+  const syncVersion = useScopedDataSyncVersion(['trips', 'vehicles'])
 
   const loadTrips = async () => {
     setIsLoading(true)
@@ -29,7 +31,7 @@ export function TripsPage() {
 
   useEffect(() => {
     void loadTrips()
-  }, [])
+  }, [syncVersion])
 
   const handleFiltersChange = useCallback((next: TripFilterPayload) => {
     setFilters(next)

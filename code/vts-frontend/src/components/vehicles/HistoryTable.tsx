@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { vehicleService } from '@services/vehicleService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { TelemetryPoint, Trip } from '../../types/vehicle'
 
 type HistoryRow = {
@@ -18,6 +19,7 @@ export function HistoryTable({ vehicleId, pageSize = 8 }: HistoryTableProps) {
   const [rows, setRows] = useState<HistoryRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
+  const syncVersion = useScopedDataSyncVersion(['telemetry', 'trips'])
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -34,7 +36,7 @@ export function HistoryTable({ vehicleId, pageSize = 8 }: HistoryTableProps) {
     }
 
     void loadHistory()
-  }, [vehicleId])
+  }, [vehicleId, syncVersion])
 
   const totalPages = useMemo(() => {
     if (!rows.length) {

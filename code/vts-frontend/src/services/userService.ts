@@ -1,6 +1,7 @@
 import type { UserRole } from './authService'
 import { apiClient } from '../api/apiClient'
 import { buildCollegeScopedPath, isSuperAdminCollegeScopeRequired } from '@utils/collegeScope'
+import { invalidateDataSync } from '@store/dataSyncStore'
 
 export type UserStatus = 'active' | 'disabled'
 export type ManageableUserRole = 'FLEET_MANAGER' | 'STUDENT'
@@ -53,19 +54,27 @@ class UserService {
   }
 
   async createUser(input: CreateUserInput): Promise<{ success: true; user: UserRecord }> {
-    return apiClient.post<{ success: true; user: UserRecord }>('/users', input)
+    const response = await apiClient.post<{ success: true; user: UserRecord }>('/users', input)
+    invalidateDataSync(['users'])
+    return response
   }
 
   async updateUser(userId: string, updates: UpdateUserInput): Promise<{ success: true; user: UserRecord }> {
-    return apiClient.patch<{ success: true; user: UserRecord }>(`/users/${userId}`, updates)
+    const response = await apiClient.patch<{ success: true; user: UserRecord }>(`/users/${userId}`, updates)
+    invalidateDataSync(['users'])
+    return response
   }
 
   async deleteUser(userId: string): Promise<{ success: true }> {
-    return apiClient.delete<{ success: true }>(`/users/${userId}`)
+    const response = await apiClient.delete<{ success: true }>(`/users/${userId}`)
+    invalidateDataSync(['users'])
+    return response
   }
 
   async updateUserStatus(userId: string, status: UserStatus): Promise<{ success: true; user: UserRecord }> {
-    return apiClient.patch<{ success: true; user: UserRecord }>(`/users/${userId}/status`, { status })
+    const response = await apiClient.patch<{ success: true; user: UserRecord }>(`/users/${userId}/status`, { status })
+    invalidateDataSync(['users'])
+    return response
   }
 }
 

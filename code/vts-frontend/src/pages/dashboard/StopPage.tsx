@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StopFilters, type StopFilterPayload } from '@components/events/StopFilters'
 import { StopTable } from '@components/events/StopTable'
 import { stopService } from '@services/stopService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { StopEvent } from '../../types/events'
 
 function buildTodayFilters(): StopFilterPayload {
@@ -21,6 +22,7 @@ export function StopPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState<StopFilterPayload>(buildTodayFilters)
   const requestIdRef = useRef(0)
+  const syncVersion = useScopedDataSyncVersion(['events', 'notifications'])
 
   const loadEvents = useCallback(async () => {
     if (!filters.startDate || !filters.endDate) {
@@ -51,7 +53,7 @@ export function StopPage() {
 
   useEffect(() => {
     void loadEvents()
-  }, [loadEvents])
+  }, [loadEvents, syncVersion])
 
   const handleFiltersChange = useCallback((nextFilters: StopFilterPayload) => {
     setFilters(nextFilters)

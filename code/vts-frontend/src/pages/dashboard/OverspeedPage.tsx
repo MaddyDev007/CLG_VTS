@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OverspeedFilters, type OverspeedFilterPayload } from '@components/events/OverspeedFilters'
 import { OverspeedTable } from '@components/events/OverspeedTable'
 import { overspeedService } from '@services/overspeedService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { OverspeedEvent } from '../../types/events'
 
 export function OverspeedPage() {
@@ -9,6 +10,7 @@ export function OverspeedPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState<OverspeedFilterPayload>({ dateRange: 'today' })
   const requestIdRef = useRef(0)
+  const syncVersion = useScopedDataSyncVersion(['events', 'notifications'])
 
   const loadEvents = useCallback(async (showLoading = true) => {
     const requestId = ++requestIdRef.current
@@ -30,14 +32,7 @@ export function OverspeedPage() {
 
   useEffect(() => {
     void loadEvents()
-    const intervalId = window.setInterval(() => {
-      void loadEvents(false)
-    }, 5000)
-
-    return () => {
-      window.clearInterval(intervalId)
-    }
-  }, [loadEvents])
+  }, [loadEvents, syncVersion])
 
   const handleFiltersChange = useCallback((nextFilters: OverspeedFilterPayload) => {
     setFilters(nextFilters)

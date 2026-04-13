@@ -5,6 +5,7 @@ import { HistoryPlaybackControls } from '@components/history/HistoryPlaybackCont
 import { HistoryTimeline } from '@components/history/HistoryTimeline'
 import { useTripPlayback } from '@hooks/useTripPlayback'
 import { historyService } from '@services/historyService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { HistoryPoint, VehicleHistory } from '../../types/history'
 import type { TripPlaybackPoint } from '../../types/trip'
 
@@ -13,6 +14,7 @@ export function VehicleHistoryDetailPage() {
   const [history, setHistory] = useState<VehicleHistory | null>(null)
   const [timeline, setTimeline] = useState<HistoryPoint[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const syncVersion = useScopedDataSyncVersion(['history', 'vehicles', 'telemetry', 'trips'])
   const playbackPoints = useMemo<TripPlaybackPoint[]>(
     () =>
       timeline.map((point) => ({
@@ -54,7 +56,7 @@ export function VehicleHistoryDetailPage() {
     }
 
     void loadData()
-  }, [vehicleId])
+  }, [vehicleId, syncVersion])
 
   const events = useMemo(() => [], [])
 

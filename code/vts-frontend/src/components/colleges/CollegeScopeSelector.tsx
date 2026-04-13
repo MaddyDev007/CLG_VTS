@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { collegeService, type CollegeOption } from '@services/collegeService'
 import { useAuthStore } from '@store/authStore'
 import { useCollegeFilterStore } from '@store/collegeFilterStore'
+import { GLOBAL_SCOPE_KEY, useScopedDataSyncVersion } from '@store/dataSyncStore'
 
 type CollegeScopeSelectorProps = {
   className?: string
@@ -19,6 +20,7 @@ export function CollegeScopeSelector({
   const setSelectedCollegeId = useCollegeFilterStore((state) => state.setSelectedCollegeId)
   const [colleges, setColleges] = useState<CollegeOption[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const syncVersion = useScopedDataSyncVersion(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
 
   useEffect(() => {
     if (role !== 'SUPER_ADMIN') {
@@ -40,7 +42,7 @@ export function CollegeScopeSelector({
     }
 
     void loadColleges()
-  }, [role, selectedCollegeId, setSelectedCollegeId])
+  }, [role, selectedCollegeId, setSelectedCollegeId, syncVersion])
 
   const selectedCollegeName = useMemo(
     () => colleges.find((college) => college.id === selectedCollegeId)?.name ?? null,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { vehicleService } from '@services/vehicleService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { formatDistance } from '@utils/tripFormat'
 import type { Trip } from '../../types/vehicle'
 
@@ -14,6 +15,7 @@ export function TripHistoryTable({ vehicleId, pageSize = 5 }: TripHistoryTablePr
   const [trips, setTrips] = useState<Trip[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
+  const syncVersion = useScopedDataSyncVersion(['trips'])
 
   useEffect(() => {
     const loadTrips = async () => {
@@ -25,7 +27,7 @@ export function TripHistoryTable({ vehicleId, pageSize = 5 }: TripHistoryTablePr
     }
 
     void loadTrips()
-  }, [vehicleId])
+  }, [vehicleId, syncVersion])
 
   const totalPages = useMemo(() => {
     if (!trips.length) {

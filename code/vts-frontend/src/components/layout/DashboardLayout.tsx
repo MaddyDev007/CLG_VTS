@@ -3,11 +3,9 @@ import { useState } from 'react'
 import { CollegeDeleteApprovalBanner } from '@components/colleges/CollegeDeleteApprovalBanner'
 import { Sidebar } from '@components/navigation/Sidebar'
 import { Topbar } from '@components/navigation/Topbar'
-import { useNotificationListener } from '@hooks/useNotificationListener'
 import { useCollegeFilterStore } from '@store/collegeFilterStore'
 
 export function DashboardLayout({ children }: PropsWithChildren) {
-  useNotificationListener()
   const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)

@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { HistoryFilters, type HistoryFilterPayload } from '@components/history/HistoryFilters'
 import { HistoryVehicleTable } from '@components/history/HistoryVehicleTable'
 import { historyService } from '@services/historyService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { VehicleHistory } from '../../types/history'
 
 export function HistoryPage() {
   const [vehiclesHistory, setVehiclesHistory] = useState<VehicleHistory[]>([])
   const [filters, setFilters] = useState<HistoryFilterPayload>({ dateRange: 'today' })
   const [isLoading, setIsLoading] = useState(true)
+  const syncVersion = useScopedDataSyncVersion(['history', 'vehicles'])
 
   useEffect(() => {
     const loadData = async () => {
@@ -21,7 +23,7 @@ export function HistoryPage() {
     }
 
     void loadData()
-  }, [])
+  }, [syncVersion])
 
   const handleFiltersChange = useCallback((nextFilters: HistoryFilterPayload) => {
     setFilters(nextFilters)

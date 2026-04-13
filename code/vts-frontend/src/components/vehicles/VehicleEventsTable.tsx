@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { overspeedService } from '@services/overspeedService'
 import { idlingService } from '@services/idlingService'
 import { stopService } from '@services/stopService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { formatDuration } from '@utils/time'
 import type { IdlingEvent, OverspeedEvent, StopEvent } from '../../types/events'
 
@@ -47,6 +48,7 @@ function toRow(event: OverspeedEvent | IdlingEvent | StopEvent, type: VehicleEve
 export function VehicleEventsTable({ vehicleId }: VehicleEventsTableProps) {
   const [events, setEvents] = useState<VehicleEventRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const syncVersion = useScopedDataSyncVersion(['events', 'notifications'])
 
   useEffect(() => {
     const loadEvents = async () => {
@@ -74,7 +76,7 @@ export function VehicleEventsTable({ vehicleId }: VehicleEventsTableProps) {
     }
 
     void loadEvents()
-  }, [vehicleId])
+  }, [vehicleId, syncVersion])
 
   const sortedEvents = useMemo(
     () =>

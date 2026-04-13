@@ -1,16 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { NotificationFilters, type NotificationFilterOption } from '@components/notifications/NotificationFilters'
 import { NotificationsList } from '@components/notifications/NotificationsList'
 import { Pagination } from '@components/ui/Pagination'
 import { notificationService } from '@services/notificationService'
-import { socketService } from '@services/socketService'
-import { useAuthStore } from '@store/authStore'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { useNotificationStore } from '@store/notificationStore'
 import type { Notification } from '../../types/notification'
 
 export function NotificationsPage() {
-  const role = useAuthStore((state) => state.role)
-  const isSuperAdmin = role === 'SUPER_ADMIN'
   const isLoaded = useNotificationStore((state) => state.isLoaded)
   const loadNotifications = useNotificationStore((state) => state.loadNotifications)
   const markAsRead = useNotificationStore((state) => state.markAsRead)
@@ -23,28 +20,7 @@ export function NotificationsPage() {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [total, setTotal] = useState(0)
-  const refreshTimeoutRef = useRef<number | null>(null)
-
-  const notificationMatchesView = useCallback(
-    (notification: Notification) => {
-      const matchesType = filter === 'all' || notification.type === filter
-      const normalizedSearch = search.trim().toLowerCase()
-
-      if (!normalizedSearch) {
-        return matchesType
-      }
-
-      const haystacks = [
-        notification.vehicleName,
-        notification.message,
-        notification.routeName ?? '',
-        notification.location,
-      ]
-
-      return matchesType && haystacks.some((value) => value.toLowerCase().includes(normalizedSearch))
-    },
-    [filter, search],
-  )
+  const syncVersion = useScopedDataSyncVersion(['notifications'])
 
   const reloadNotificationsPage = useCallback(async () => {
     const response = await notificationService.getNotificationsPage({
@@ -75,41 +51,7 @@ export function NotificationsPage() {
     }
 
     void loadPage()
-  }, [reloadNotificationsPage])
-
-  useEffect(() => {
-    const unsubscribe = socketService.subscribeToNotifications((notification) => {
-      const matchesView = notificationMatchesView(notification)
-
-      if (!isSuperAdmin && page === 1 && matchesView) {
-        setNotifications((currentNotifications) => {
-          const alreadyExists = currentNotifications.some((item) => item.id === notification.id)
-          const withoutDuplicate = currentNotifications.filter((item) => item.id !== notification.id)
-          if (!alreadyExists) {
-            setTotal((currentTotal) => currentTotal + 1)
-          }
-          return [notification, ...withoutDuplicate].slice(0, limit)
-        })
-      }
-
-      if (refreshTimeoutRef.current) {
-        window.clearTimeout(refreshTimeoutRef.current)
-      }
-
-      refreshTimeoutRef.current = window.setTimeout(() => {
-        void reloadNotificationsPage()
-        refreshTimeoutRef.current = null
-      }, 400)
-    })
-
-    return () => {
-      unsubscribe()
-
-      if (refreshTimeoutRef.current) {
-        window.clearTimeout(refreshTimeoutRef.current)
-      }
-    }
-  }, [isSuperAdmin, limit, notificationMatchesView, page, reloadNotificationsPage])
+  }, [reloadNotificationsPage, syncVersion])
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-5'>

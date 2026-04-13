@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchStops, type Stop } from '@services/geofenceService'
 import { routeService } from '@services/routeService'
 import { RoutePreviewMap } from '@components/routes/RoutePreviewMap'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { generateRoutePolyline } from '@utils/routePolyline'
 import { getActiveCollegeFilterId } from '@utils/collegeScope'
 import type { RouteStop } from '../../types/route'
@@ -43,6 +44,7 @@ export function RouteForm({
   const [validationError, setValidationError] = useState('')
   const [saveError, setSaveError] = useState('')
   const [reloadStopsToken, setReloadStopsToken] = useState(0)
+  const syncVersion = useScopedDataSyncVersion(['geofences'])
 
   useEffect(() => {
     if (isOpen === false) {
@@ -73,7 +75,7 @@ export function RouteForm({
     return () => {
       mounted = false
     }
-  }, [isOpen, reloadStopsToken])
+  }, [isOpen, reloadStopsToken, syncVersion])
 
   const stopMap = useMemo(() => new Map(stops.map((stop) => [stop.id, stop])), [stops])
 

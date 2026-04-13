@@ -1,6 +1,7 @@
 import type { TelemetryPoint, Trip, Vehicle, VehicleStatusCounts, VehicleType } from '../types/vehicle'
 import { apiClient } from '../api/apiClient'
 import { buildCollegeScopedPath, filterByActiveCollege, getActiveCollegeFilterId } from '@utils/collegeScope'
+import { invalidateDataSync } from '@store/dataSyncStore'
 
 export type CreateVehicleInput = {
   collegeId?: string
@@ -170,10 +171,14 @@ class VehicleService {
       deviceId: vehicleData.deviceId,
     })
 
-    return {
+    const normalizedResponse = {
       ...response,
       vehicle: normalizeVehicle(response.vehicle as unknown as BackendVehicle),
     }
+
+    invalidateDataSync(['vehicles', 'devices', 'routes', 'trips', 'history'])
+
+    return normalizedResponse
   }
 
   async updateVehicle(vehicleId: string, vehicleData: UpdateVehicleInput): Promise<UpdateVehicleResponse> {
@@ -196,14 +201,20 @@ class VehicleService {
       response = await apiClient.put<UpdateVehicleResponse>(`/vehicles/${vehicleId}`, body)
     }
 
-    return {
+    const normalizedResponse = {
       ...response,
       vehicle: normalizeVehicle(response.vehicle as unknown as BackendVehicle),
     }
+
+    invalidateDataSync(['vehicles', 'devices', 'routes', 'trips', 'history'])
+
+    return normalizedResponse
   }
 
   async deleteVehicle(vehicleId: string): Promise<DeleteVehicleResponse> {
-    return apiClient.delete<DeleteVehicleResponse>(`/vehicles/${vehicleId}`)
+    const response = await apiClient.delete<DeleteVehicleResponse>(`/vehicles/${vehicleId}`)
+    invalidateDataSync(['vehicles', 'devices', 'routes', 'trips', 'history'])
+    return response
   }
 
   async updateVehicleRoute(vehicleId: string, routeId: string | null): Promise<UpdateVehicleResponse> {
@@ -219,10 +230,14 @@ class VehicleService {
       response = await apiClient.put<UpdateVehicleResponse>(`/vehicles/${vehicleId}`, body)
     }
 
-    return {
+    const normalizedResponse = {
       ...response,
       vehicle: normalizeVehicle(response.vehicle as unknown as BackendVehicle),
     }
+
+    invalidateDataSync(['vehicles', 'devices', 'routes', 'trips', 'history'])
+
+    return normalizedResponse
   }
 }
 

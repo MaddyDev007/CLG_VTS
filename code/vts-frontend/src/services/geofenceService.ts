@@ -1,6 +1,7 @@
 import type { Geofence } from '../types/geofence'
 import { apiClient } from '../api/apiClient'
 import { buildCollegeScopedPath, filterByActiveCollege, getActiveCollegeFilterId } from '@utils/collegeScope'
+import { invalidateDataSync } from '@store/dataSyncStore'
 
 export type CreateGeofenceInput = {
   collegeId?: string
@@ -73,24 +74,34 @@ class GeofenceService {
   async createGeofence(
     geofenceData: CreateGeofenceInput,
   ): Promise<{ success: true; message: string; geofence: Geofence }> {
-    return apiClient.post<{ success: true; message: string; geofence: Geofence }>(
+    const response = await apiClient.post<{ success: true; message: string; geofence: Geofence }>(
       buildCollegeScopedPath('/geofences', { collegeId: geofenceData.collegeId ?? getActiveCollegeFilterId() }),
       geofenceData,
     )
+
+    invalidateDataSync(['geofences', 'routes', 'vehicles', 'events'])
+
+    return response
   }
 
   async updateGeofence(
     geofenceId: string,
     updatedData: UpdateGeofenceInput,
   ): Promise<{ success: true; message: string; geofence: Geofence }> {
-    return apiClient.put<{ success: true; message: string; geofence: Geofence }>(
+    const response = await apiClient.put<{ success: true; message: string; geofence: Geofence }>(
       `/geofences/${geofenceId}`,
       updatedData,
     )
+
+    invalidateDataSync(['geofences', 'routes', 'vehicles', 'events'])
+
+    return response
   }
 
   async deleteGeofence(id: string): Promise<GeofenceServiceResponse> {
-    return apiClient.delete<GeofenceServiceResponse>(`/geofences/${id}`)
+    const response = await apiClient.delete<GeofenceServiceResponse>(`/geofences/${id}`)
+    invalidateDataSync(['geofences', 'routes', 'vehicles', 'events'])
+    return response
   }
 }
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IdlingFilters, type IdlingFilterPayload } from '@components/events/IdlingFilters'
 import { IdlingTable } from '@components/events/IdlingTable'
 import { idlingService } from '@services/idlingService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import type { IdlingEvent } from '../../types/events'
 
 export function IdlingPage() {
@@ -9,7 +10,7 @@ export function IdlingPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState<IdlingFilterPayload>({ dateRange: 'today' })
   const requestIdRef = useRef(0)
-  const intervalRef = useRef<number | null>(null)
+  const syncVersion = useScopedDataSyncVersion(['events', 'notifications'])
 
   const loadEvents = useCallback(async (showLoading = true) => {
     const requestId = ++requestIdRef.current
@@ -31,19 +32,7 @@ export function IdlingPage() {
 
   useEffect(() => {
     void loadEvents()
-  }, [loadEvents])
-
-  useEffect(() => {
-    intervalRef.current = window.setInterval(() => {
-      void loadEvents(false)
-    }, 15000)
-
-    return () => {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
-      }
-    }
-  }, [loadEvents])
+  }, [loadEvents, syncVersion])
 
   const handleFiltersChange = useCallback((nextFilters: IdlingFilterPayload) => {
     setFilters(nextFilters)

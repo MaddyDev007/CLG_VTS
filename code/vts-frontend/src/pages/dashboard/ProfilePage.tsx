@@ -4,11 +4,13 @@ import { ChangePasswordForm } from '@components/profile/ChangePasswordForm'
 import { PreferencesCard } from '@components/profile/PreferencesCard'
 import type { NotificationPreferences, UserProfile } from '../../types/profile'
 import { profileService } from '@services/profileService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 
 export function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null)
   const [timezone, setTimezone] = useState('Asia/Kolkata')
+  const syncVersion = useScopedDataSyncVersion(['profile'])
 
   useEffect(() => {
     const loadProfileData = async () => {
@@ -26,7 +28,7 @@ export function ProfilePage() {
     }
 
     void loadProfileData()
-  }, [])
+  }, [syncVersion])
 
   const handleChangePassword = async (payload: { currentPassword: string; newPassword: string }) => {
     await profileService.changePassword(payload)

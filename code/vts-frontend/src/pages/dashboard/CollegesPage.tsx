@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FiArrowRight, FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 import { collegeService, type CollegeSummary } from '@services/collegeService'
+import { GLOBAL_SCOPE_KEY, useScopedDataSyncVersion } from '@store/dataSyncStore'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -19,6 +20,7 @@ export function CollegesPage() {
   const [createSuccess, setCreateSuccess] = useState('')
   const [rowActionError, setRowActionError] = useState('')
   const [requestingDeleteId, setRequestingDeleteId] = useState<string | null>(null)
+  const syncVersion = useScopedDataSyncVersion(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
 
   const loadColleges = async () => {
     setIsLoading(true)
@@ -32,7 +34,7 @@ export function CollegesPage() {
 
   useEffect(() => {
     void loadColleges()
-  }, [])
+  }, [syncVersion])
 
   const resetCreateForm = () => {
     setNewCollegeName('')

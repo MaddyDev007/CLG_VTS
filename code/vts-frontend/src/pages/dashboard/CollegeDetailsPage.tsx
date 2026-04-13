@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FiArrowLeft, FiSave } from 'react-icons/fi'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { collegeService, type CollegeDetails } from '@services/collegeService'
+import { GLOBAL_SCOPE_KEY, useScopedDataSyncVersion } from '@store/dataSyncStore'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -31,6 +32,7 @@ export function CollegeDetailsPage() {
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const isDeletePending = college?.status === 'delete_pending'
+  const syncVersion = useScopedDataSyncVersion(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
 
   useEffect(() => {
     if (!id) {
@@ -52,7 +54,7 @@ export function CollegeDetailsPage() {
     }
 
     void loadData()
-  }, [id])
+  }, [id, syncVersion])
 
   const handleSave = async () => {
     if (!id) {

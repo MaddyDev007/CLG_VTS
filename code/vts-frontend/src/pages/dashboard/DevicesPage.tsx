@@ -6,6 +6,7 @@ import { DeleteDeviceDialog } from '@components/devices/DeleteDeviceDialog'
 import { DeviceTable } from '@components/devices/DeviceTable'
 import { EditDeviceModal } from '@components/devices/EditDeviceModal'
 import { deviceService } from '@services/deviceService'
+import { useScopedDataSyncVersion } from '@store/dataSyncStore'
 import { isSuperAdminCollegeScopeRequired } from '@utils/collegeScope'
 import type { Device } from '../../types/device'
 
@@ -22,6 +23,7 @@ export function DevicesPage() {
   const [editingDevice, setEditingDevice] = useState<Device | null>(null)
   const [deletingDevice, setDeletingDevice] = useState<Device | null>(null)
   const [toast, setToast] = useState<DeviceToast | null>(null)
+  const syncVersion = useScopedDataSyncVersion(['devices', 'vehicles'])
 
   const loadDevices = async () => {
     setIsLoading(true)
@@ -40,7 +42,7 @@ export function DevicesPage() {
 
   useEffect(() => {
     void loadDevices()
-  }, [collegeScopeRequired])
+  }, [collegeScopeRequired, syncVersion])
 
   useEffect(() => {
     if (!toast) {

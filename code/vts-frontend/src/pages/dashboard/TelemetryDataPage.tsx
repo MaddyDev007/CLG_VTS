@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TelemetryFilters, type TelemetryFilterPayload } from '@components/telemetry/TelemetryFilters'
 import { LiveTelemetryList } from '@components/telemetry/LiveTelemetryList'
 import { TelemetryTable } from '@components/telemetry/TelemetryTable'
-import { socketService, type VehicleSocketPayload } from '@services/socketService'
+import { useVehicleSocket } from '@hooks/useVehicleSocket'
+import type { VehicleSocketPayload } from '@services/socketService'
 import { telemetryService } from '@services/telemetryService'
 import {
   applyTelemetryLiveUpdate,
@@ -111,30 +112,35 @@ export function TelemetryDataPage() {
   }, [canEnableLiveMode, isLiveMode])
 
   useEffect(() => {
-    if (!isLiveMode) {
-      if (liveFlushTimeoutRef.current) {
-        window.clearTimeout(liveFlushTimeoutRef.current)
-        liveFlushTimeoutRef.current = null
-      }
-      liveQueueRef.current = []
+    if (isLiveMode) {
       return
     }
 
-    const unsubscribe = socketService.subscribeToVehicleUpdates((payload) => {
-      liveQueueRef.current.push(payload)
-      scheduleLiveFlush()
-    })
+    if (liveFlushTimeoutRef.current) {
+      window.clearTimeout(liveFlushTimeoutRef.current)
+      liveFlushTimeoutRef.current = null
+    }
+    liveQueueRef.current = []
+  }, [isLiveMode])
 
+  useEffect(() => {
     return () => {
-      unsubscribe()
-
       if (liveFlushTimeoutRef.current) {
         window.clearTimeout(liveFlushTimeoutRef.current)
         liveFlushTimeoutRef.current = null
       }
       liveQueueRef.current = []
     }
-  }, [isLiveMode, scheduleLiveFlush])
+  }, [])
+
+  useVehicleSocket((payload) => {
+    if (!isLiveMode) {
+      return
+    }
+
+    liveQueueRef.current.push(payload)
+    scheduleLiveFlush()
+  })
 
   const handleFiltersChange = useCallback((nextFilters: TelemetryFilterPayload) => {
     setFilters(nextFilters)

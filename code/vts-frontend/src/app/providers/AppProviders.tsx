@@ -1,5 +1,6 @@
 import { useEffect, type PropsWithChildren } from 'react'
 import { useAuthStore } from '@store/authStore'
+import { RealtimeBridge } from './RealtimeBridge'
 import { ThemeProvider } from './ThemeProvider'
 
 export function AppProviders({ children }: PropsWithChildren) {
@@ -9,5 +10,10 @@ export function AppProviders({ children }: PropsWithChildren) {
     restoreSession()
   }, [restoreSession])
 
-  return <ThemeProvider>{children}</ThemeProvider>
+  return (
+    <ThemeProvider>
+      <RealtimeBridge />
+      {children}
+    </ThemeProvider>
+  )
 }

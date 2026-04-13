@@ -134,6 +134,12 @@ Start the default stack:
 docker compose up -d
 ```
 
+Expected URLs after startup:
+
+- frontend UI: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}`
+- backend API via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api`
+- Swagger UI via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api/docs`
+
 Read logs:
 
 ```bash
@@ -156,6 +162,12 @@ docker compose build
 docker compose up -d
 ```
 
+Expected URLs after startup:
+
+- frontend UI: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}`
+- backend API via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api`
+- Swagger UI via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api/docs`
+
 ## Optional Simulator
 
 Build and start the simulator only when needed:
@@ -164,6 +176,11 @@ Build and start the simulator only when needed:
 docker compose --profile simulator build vts-device-simulator
 docker compose --profile simulator up -d vts-device-simulator
 ```
+
+Expected simulator URLs after startup:
+
+- simulator UI/API: `http://127.0.0.1:${SIMULATOR_PORT:-3011}`
+- simulator health: `http://127.0.0.1:${SIMULATOR_PORT:-3011}/health`
 
 By default the simulator binds to `127.0.0.1:${SIMULATOR_PORT:-3011}`, so it is not publicly exposed.
 
@@ -224,12 +241,23 @@ docker compose build frontend
 docker compose up -d
 ```
 
+Expected URLs after startup:
+
+- frontend UI: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}`
+- backend API via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api`
+- Swagger UI via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api/docs`
+
 If you also need the simulator:
 
 ```bash
 docker compose --profile simulator build vts-device-simulator
 docker compose --profile simulator up -d vts-device-simulator
 ```
+
+Expected simulator URLs after startup:
+
+- simulator UI/API: `http://127.0.0.1:${SIMULATOR_PORT:-3011}`
+- simulator health: `http://127.0.0.1:${SIMULATOR_PORT:-3011}/health`
 
 If builds still OOM, add swap before rebuilding:
 
@@ -294,6 +322,12 @@ git checkout <previous-commit>
 docker compose build
 docker compose up -d
 ```
+
+Expected URLs after startup:
+
+- frontend UI: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}`
+- backend API via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api`
+- Swagger UI via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api/docs`
 
 Return to the main branch when you are ready:
 

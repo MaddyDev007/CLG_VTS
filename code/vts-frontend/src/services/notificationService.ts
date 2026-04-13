@@ -1,6 +1,7 @@
 import type { Notification } from '../types/notification'
 import { apiClient } from '../api/apiClient'
 import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
+import { invalidateDataSync } from '@store/dataSyncStore'
 
 type CreateNotificationInput = {
   type: Notification['type']
@@ -62,17 +63,21 @@ class NotificationService {
 
   async markAsRead(notificationId: string): Promise<Notification | null> {
     await apiClient.patch(`/notifications/${notificationId}/read`)
+    invalidateDataSync(['notifications'])
     const notifications = await this.getNotifications({ page: 1, limit: 50 })
     return notifications.find((notification) => notification.id === notificationId) ?? null
   }
 
   async markAllAsRead(): Promise<Notification[]> {
     await apiClient.patch('/notifications/read-all')
+    invalidateDataSync(['notifications'])
     return this.getNotifications({ page: 1, limit: 50 })
   }
 
   async createNotification(payload: CreateNotificationInput): Promise<Notification> {
-    return apiClient.post<Notification>('/notifications', payload)
+    const response = await apiClient.post<Notification>('/notifications', payload)
+    invalidateDataSync(['notifications'])
+    return response
   }
 }
 
