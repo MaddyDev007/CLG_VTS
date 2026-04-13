@@ -5,6 +5,7 @@ import {
   getPublisherHealth,
   getAssignedDevices,
   getDeviceSimulatorUrl,
+  getApiErrorMessage,
   publishTelemetry,
   setDeviceSimulatorUrl,
   type TransportProtocol,
@@ -131,9 +132,9 @@ export default function Simulator() {
           vehicleName: first.assignedVehicleName ?? first.device_id ?? '',
         }));
       }
-    } catch (_error) {
+    } catch (error) {
       setDevices([]);
-      setDeviceError('Devices load failed. Start `vts-device-simulator` and check `POSTGRES_URL`.');
+      setDeviceError(getApiErrorMessage(error, 'Devices load failed. Start `vts-device-simulator` and check `POSTGRES_URL`.'));
     } finally {
       setDevicesLoading(false);
     }
@@ -162,9 +163,9 @@ export default function Simulator() {
       }));
       setPublisherStatus(health.transports.mqtt.connected ? 'ready' : 'idle');
       setPublisherError('');
-    } catch (_error) {
+    } catch (error) {
       setPublisherStatus('disconnected');
-      setPublisherError('Publisher health check failed.');
+      setPublisherError(getApiErrorMessage(error, 'Publisher health check failed.'));
     }
   }, []);
 
@@ -281,8 +282,7 @@ export default function Simulator() {
       setPublisherError('');
       pushLog(`${transport.protocol.toUpperCase()} sent: ${payload.device_id} -> ${transportSummary}`);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : `${transport.protocol.toUpperCase()} send failed.`;
+      const message = getApiErrorMessage(error, `${transport.protocol.toUpperCase()} send failed.`);
       setPublisherStatus('disconnected');
       setPublisherError(message);
       pushLog(message);

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import axios, { AxiosError } from 'axios';
 import cors from 'cors';
 import dgram from 'dgram';
 import express from 'express';
@@ -37,14 +38,35 @@ type AssignedDevice = {
   assignedVehicleName: string | null;
 };
 
+type SimulatorRole = 'SUPER_ADMIN' | 'COLLEGE_ADMIN' | 'FLEET_MANAGER' | 'STUDENT';
+
+type BackendProfile = {
+  id: string;
+  email: string;
+  name: string;
+  role: SimulatorRole;
+  collegeId?: string | null;
+};
+
+type BackendLoginResponse = BackendProfile & {
+  token: string;
+};
+
+type AuthenticatedRequest = express.Request & {
+  authToken?: string;
+  authUser?: BackendProfile;
+};
+
 const port = Number(process.env.SIMULATOR_SERVER_PORT ?? 3011);
 const postgresUrl = process.env.POSTGRES_URL ?? 'postgres://postgres:vts123@postgres:5432/vts';
 const mqttBrokerUrl = process.env.MQTT_BROKER_URL ?? 'mqtt://mosquitto:1883';
+const backendApiUrl = (process.env.BACKEND_API_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 const tcpHost = process.env.SIM_TCP_HOST ?? 'backend';
 const tcpPort = Number(process.env.SIM_TCP_PORT ?? 4002);
 const udpHost = process.env.SIM_UDP_HOST ?? 'backend';
 const udpPort = Number(process.env.SIM_UDP_PORT ?? 4001);
 const defaultProtocol = ((process.env.SIM_PROTOCOL ?? 'mqtt').toLowerCase() as TransportProtocol);
+const allowedSimulatorRoles = new Set<SimulatorRole>(['SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER']);
 const clientDist = fileURLToPath(new URL('../dist', import.meta.url));
 const clientIndex = resolve(clientDist, 'index.html');
 
@@ -57,6 +79,81 @@ const pool = new Pool({
 });
 
 const mqttClient = mqtt.connect(mqttBrokerUrl, { reconnectPeriod: 2000 });
+
+function extractBearerToken(request: express.Request) {
+  const authHeader = request.header('authorization');
+
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.slice('Bearer '.length).trim();
+  return token.length > 0 ? token : null;
+}
+
+function toHttpError(error: unknown, fallbackMessage: string) {
+  if (error instanceof AxiosError) {
+    return {
+      status: error.response?.status ?? 502,
+      message:
+        (error.response?.data as { message?: string } | undefined)?.message ??
+        error.message ??
+        fallbackMessage,
+    };
+  }
+
+  if (error instanceof Error) {
+    const status = (error as Error & { status?: number }).status ?? 500;
+    return {
+      status,
+      message: error.message || fallbackMessage,
+    };
+  }
+
+  return {
+    status: 500,
+    message: fallbackMessage,
+  };
+}
+
+async function fetchValidatedProfile(token: string): Promise<BackendProfile> {
+  const response = await axios.get<BackendProfile>(`${backendApiUrl}/profile`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    timeout: 5000,
+  });
+
+  if (!allowedSimulatorRoles.has(response.data.role)) {
+    const error = new Error('You do not have permission to use the simulator.');
+    (error as Error & { status?: number }).status = 403;
+    throw error;
+  }
+
+  return response.data;
+}
+
+async function requireSimulatorAuth(
+  request: AuthenticatedRequest,
+  response: express.Response,
+  next: express.NextFunction,
+) {
+  const token = extractBearerToken(request);
+
+  if (!token) {
+    response.status(401).json({ message: 'Authentication required.' });
+    return;
+  }
+
+  try {
+    request.authToken = token;
+    request.authUser = await fetchValidatedProfile(token);
+    next();
+  } catch (error) {
+    const httpError = toHttpError(error, 'Unable to validate simulator access.');
+    response.status(httpError.status).json({ message: httpError.message });
+  }
+}
 
 async function loadAssignedDevices(): Promise<AssignedDevice[]> {
   const result = await pool.query<AssignedDevice>(`
@@ -123,7 +220,70 @@ function sendViaMqtt(topic: string, payload: TelemetryPayload) {
   });
 }
 
-app.get('/health', (_request, response) => {
+app.post('/auth/login', async (request, response) => {
+  const { email, password } = request.body as { email?: string; password?: string };
+
+  if (!email?.trim() || !password?.trim()) {
+    response.status(400).json({ message: 'Email and password are required.' });
+    return;
+  }
+
+  try {
+    const backendResponse = await axios.post<BackendLoginResponse>(
+      `${backendApiUrl}/auth/login`,
+      {
+        email: email.trim(),
+        password,
+      },
+      {
+        timeout: 5000,
+      },
+    );
+
+    if (!allowedSimulatorRoles.has(backendResponse.data.role)) {
+      response.status(403).json({ message: 'You do not have permission to use the simulator.' });
+      return;
+    }
+
+    response.json(backendResponse.data);
+  } catch (error) {
+    const httpError = toHttpError(error, 'Login failed.');
+    console.warn(`[vts-device-simulator] login failed: ${httpError.message}`);
+    response.status(httpError.status).json({ message: httpError.message });
+  }
+});
+
+app.get('/auth/session', requireSimulatorAuth, (request: AuthenticatedRequest, response) => {
+  response.json(request.authUser);
+});
+
+app.post('/auth/logout', async (request, response) => {
+  const token = extractBearerToken(request);
+
+  if (!token) {
+    response.json({ success: true });
+    return;
+  }
+
+  try {
+    await axios.post(
+      `${backendApiUrl}/auth/logout`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        timeout: 5000,
+      },
+    );
+  } catch {
+    // Backend logout is stateless. Local session clearing is still enough.
+  }
+
+  response.json({ success: true });
+});
+
+app.get('/health', requireSimulatorAuth, (_request, response) => {
   response.json({
     ok: true,
     defaultProtocol,
@@ -144,7 +304,7 @@ app.get('/health', (_request, response) => {
   });
 });
 
-app.get('/devices', async (_request, response) => {
+app.get('/devices', requireSimulatorAuth, async (_request, response) => {
   try {
     const devices = await loadAssignedDevices();
     response.json(devices);
@@ -154,7 +314,7 @@ app.get('/devices', async (_request, response) => {
   }
 });
 
-app.post('/publish', async (request, response) => {
+app.post('/publish', requireSimulatorAuth, async (request, response) => {
   const {
     protocol = defaultProtocol,
     topic,
@@ -209,7 +369,7 @@ app.post('/publish', async (request, response) => {
 
 if (existsSync(clientDist)) {
   app.use(express.static(clientDist));
-  app.get(/^\/(?!health$|devices$|publish$).*/, (_request, response) => {
+  app.get(/^\/(?!auth(?:\/|$)|health$|devices$|publish$).*/, (_request, response) => {
     response.sendFile(clientIndex);
   });
 }
