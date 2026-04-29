@@ -63,7 +63,7 @@ Target standard:
 
 - all device and analytics contracts use epoch ms
 
-Current old-backend implementation:
+Current implementation:
 
 - DB entities are `timestamptz`
 - many REST responses serialize to ISO strings
@@ -76,9 +76,10 @@ This must be treated as technical debt to normalize, not as the desired long-ter
 Backend must process messages from MQTT:
 
 - current topic default: `vts/devices/+/telemetry`
-- current old-backend payload fields: `device_id`, `timestamp`, `lat`, `lon`, `speed_kmph`, `battery_mv`, `signal_dbm`, `ignition`
-- current subscriber: [MqttService](/home/user/Desktop/Maddy Git/CLG_VTS/vts-backend/src/mqtt/mqtt.service.ts)
-- current handler: [TelemetryHandler](/home/user/Desktop/Maddy Git/CLG_VTS/vts-backend/src/mqtt/telemetry.handler.ts)
+- current MQTT payload fields: `timestamp`, `lat`, `lon`, `speed_kmph`, `battery_mv`, `signal_dbm`, `ignition`
+- current MQTT device lookup uses the telemetry topic segment as the device IMEI; the simulator also sends `imei_no`
+- current subscriber: [MqttService](../../../vts-backend/src/mqtt/mqtt.service.ts)
+- current handler: [TelemetryHandler](../../../vts-backend/src/mqtt/telemetry.handler.ts)
 
 REST must not replace MQTT ingestion logic.
 
@@ -93,8 +94,8 @@ The authenticated actor context must include:
 
 Current implementation:
 
-- [AuthService](/home/user/Desktop/Maddy Git/CLG_VTS/vts-backend/src/modules/auth/auth.service.ts)
-- [JwtStrategy](/home/user/Desktop/Maddy Git/CLG_VTS/vts-backend/src/modules/auth/jwt.strategy.ts)
+- [AuthService](../../../vts-backend/src/modules/auth/auth.service.ts)
+- [JwtStrategy](../../../vts-backend/src/modules/auth/jwt.strategy.ts)
 
 Tenant rules:
 
@@ -112,11 +113,11 @@ Telemetry ingestion must:
 - update vehicle state
 - feed downstream trip/event creation
 
-Safe ingestion branches:
+Current ingestion branches:
 
 - known device + assigned vehicle -> normal operational path
-- known device + unassigned vehicle -> quarantine path only
-- unknown device -> create pending device record + quarantine path only
+- known device + unassigned vehicle -> ignored by operational ingestion
+- unknown device -> ignored after logging
 
 Unknown or unassigned telemetry must never:
 
@@ -126,7 +127,7 @@ Unknown or unassigned telemetry must never:
 - create operational notifications
 - pollute fleet dashboards
 
-Quarantine requirements:
+Future quarantine requirements:
 
 - preserve the raw payload and MQTT topic
 - update discovery metadata such as `firstSeen`, `lastSeen`, and `messageCount`
@@ -139,17 +140,21 @@ Device ingestion states:
 
 1. `UNKNOWN_DEVICE`
    - `deviceId` not present in the database
-   - action:
+   - current action:
+     - log and ignore
+     - do not process telemetry into the operational pipeline
+   - future action:
      - create a pending device record
      - store the message in quarantine
-     - do not process telemetry into the operational pipeline
 
 2. `UNASSIGNED_DEVICE`
    - device exists but is not bound to a vehicle
-   - action:
-     - store the message in quarantine
+   - current action:
+     - ignore
      - do not update vehicle state
      - do not derive trips, events, or notifications
+   - future action:
+     - store the message in quarantine
 
 3. `ASSIGNED_DEVICE`
    - device is mapped to a vehicle

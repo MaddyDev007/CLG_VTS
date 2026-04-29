@@ -38,9 +38,10 @@ Simulators must be able to model:
 Current `vts-device-simulator`:
 
 - loads assigned devices from DB
-- publishes to `vts/devices/{deviceId}/telemetry`
+- publishes to `vts/devices/{imei}/telemetry` in the current UI flow
 - should use the same broker instance as backend/firmware when running the shared test flow
-- should publish the same legacy payload fields the old backend expects: `device_id`, `timestamp`, `lat`, `lon`, `speed_kmph`, `battery_mv`, `signal_dbm`, `ignition`
+- publishes `imei_no`, `timestamp`, `lat`, `lon`, `speed_kmph`, `heading`, `battery_mv`, `signal_dbm`, and `ignition`
+- normalizes `imei_no` from the selected assigned device before publishing
 - supports direct publish over MQTT, TCP, and UDP
 - supports local driving controls through the UI
 - does not currently simulate queueing, delays, or signal-loss behavior

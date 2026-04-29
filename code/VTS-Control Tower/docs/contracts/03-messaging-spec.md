@@ -7,7 +7,7 @@ This document defines the canonical transport contract between device-side sende
 Current transport:
 
 - MQTT
-- current old-backend stack broker: Mosquitto on port `1883`
+- current stack broker: Mosquitto on port `1883`
 - backend container connects internally as `mqtt://mosquitto:1883`
 - external publishers such as firmware must target the host machine LAN/public IP or domain on port `1883`
 - all publishers and subscribers must target the same broker instance during a test run
@@ -18,7 +18,7 @@ Current backend subscription:
 
 Recommended topic layout:
 
-- telemetry publish: `vts/devices/{deviceId}/telemetry`
+- telemetry publish: `vts/devices/{imei}/telemetry` for the current backend lookup path
 - identity publish: `vts/devices/{deviceId}/identity`
 - command downlink: `vts/devices/{deviceId}/commands`
 - command ack: `vts/devices/{deviceId}/ack`
@@ -50,13 +50,13 @@ Field rules for the future contract:
 - `battery`: mV or normalized unit, but must be documented consistently
 - `signal`: RSSI-like numeric signal strength
 
-## Current Old-Backend Contract
+## Current Backend Compatibility Contract
 
-The old backend currently ingests this legacy shape and new compatibility work must publish this shape:
+The current MQTT ingestion path accepts this compatibility shape:
 
 ```json
 {
-  "device_id": "BUS_001",
+  "imei_no": "867451234567890",
   "timestamp": "2026-03-23T12:00:00.000Z",
   "lat": 8.7139,
   "lon": 77.7567,
@@ -68,14 +68,14 @@ The old backend currently ingests this legacy shape and new compatibility work m
 }
 ```
 
-Current backend supports this legacy shape as a temporary compatibility path. New work must prefer the canonical shape above.
+Current backend support is still a compatibility path. New contract work should move toward the canonical shape above only when firmware, simulator, backend, and frontend are updated together.
 
 Current-state note:
 
-- the sample firmware in `Firmware/src/main.cpp` is configured to publish the old-backend-compatible payload
-- the current old-backend stack uses the same MQTT topic on Mosquitto
+- the current backend resolves MQTT telemetry by the topic segment as IMEI
+- the simulator publishes `imei_no` and uses `vts/devices/{imei}/telemetry`
 - the sample firmware now validates MQTT acknowledgements and queues failed telemetry in bounded memory for retry
-- legacy field names are the active compatibility contract for this workspace until the old backend is upgraded end-to-end
+- compatibility field names are the active contract for this workspace until the canonical shape is upgraded end-to-end
 
 ## Identity Message
 
@@ -99,7 +99,7 @@ Rules:
 Current-state note:
 
 - the sample firmware now publishes an identity message on MQTT connect
-- the old backend currently ignores identity messages, so they are optional for compatibility
+- the current backend currently ignores identity messages, so they are optional for compatibility
 
 ## Server -> Device Command Message
 

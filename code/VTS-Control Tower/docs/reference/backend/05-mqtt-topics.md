@@ -4,11 +4,11 @@
 - URL: from `MQTT_BROKER_URL`
 - Default (local): `mqtt://localhost:1883`
 
-> Note: The Docker Compose file in this repo does not start Mosquitto. Run a broker locally or in a separate container if needed.
+> Note: The repo-level Docker Compose file starts Mosquitto for the shared stack. Local npm-only workflows should start Mosquitto with `docker compose up -d mosquitto` or point `MQTT_BROKER_URL` at another reachable broker.
 
 ## Topics
 - Backend subscribe: `vts/devices/+/telemetry`
-- Firmware publish: `vts/devices/{deviceId}/telemetry`
+- Firmware/simulator publish: `vts/devices/{imei}/telemetry` for the current backend lookup path
 - Firmware identity: `vts/devices/{deviceId}/identity`
 - Firmware command subscribe: `vts/devices/{deviceId}/commands`
 - Firmware ACK publish: `vts/devices/{deviceId}/ack`
@@ -17,7 +17,7 @@
 Example payload accepted by `TelemetryHandler`:
 ```json
 {
-  "device_id": "VTU_001",
+  "imei_no": "867451234567890",
   "timestamp": "2026-03-10T10:00:00Z",
   "lat": 11.2588,
   "lon": 75.7804,
@@ -33,7 +33,7 @@ Example payload accepted by `TelemetryHandler`:
 ## Processing flow
 1. MQTT subscriber receives message.
 2. Payload validation (numeric fields).
-3. Device lookup via `device_id` (or topic segment).
+3. Device lookup via the telemetry topic segment as IMEI. The simulator also includes `imei_no`.
 4. Device mapped to `assignedVehicleId`.
 5. Telemetry stored in PostgreSQL.
 6. Trips + events detected.
@@ -43,8 +43,8 @@ Example payload accepted by `TelemetryHandler`:
 
 ### Using `mosquitto_pub` (local host)
 ```bash
-mosquitto_pub -h localhost -p 1883 -t "vts/devices/VTU_001/telemetry" -m '{
-  "device_id":"VTU_001",
+mosquitto_pub -h localhost -p 1883 -t "vts/devices/867451234567890/telemetry" -m '{
+  "imei_no":"867451234567890",
   "timestamp":"2026-03-10T10:00:00Z",
   "lat":11.2588,
   "lon":75.7804,
@@ -62,8 +62,8 @@ import mqtt from 'mqtt'
 
 const client = mqtt.connect('mqtt://localhost:1883')
 client.on('connect', () => {
-  client.publish('vts/devices/VTU_001/telemetry', JSON.stringify({
-    device_id: 'VTU_001',
+  client.publish('vts/devices/867451234567890/telemetry', JSON.stringify({
+    imei_no: '867451234567890',
     timestamp: new Date().toISOString(),
     lat: 11.2588,
     lon: 75.7804,
@@ -79,24 +79,25 @@ client.on('connect', () => {
 ### Using the device simulator
 From repo root:
 ```bash
-cd vts-device-simulator
+cd code/vts-device-simulator
 npm install
-node simulator.js
+npm run server
 ```
 Environment overrides:
-- `SIM_MQTT_URL` (default: `mqtt://localhost:1883`)
-- `SIM_DEVICE_IDS` (default: `VTU_001,VTU_002,VTU_003`)
-- `SIM_INTERVAL_MS` (default: `5000`)
-- `SIM_BASE_LAT`, `SIM_BASE_LON`
+- `MQTT_BROKER_URL` (default: `mqtt://mosquitto:1883`)
+- `POSTGRES_URL`
+- `BACKEND_API_URL`
+- `SIMULATOR_SERVER_PORT` (default: `3011`)
+- `SIM_PROTOCOL` (default: `mqtt`)
 
 ### Notes
-- Topic format: `vts/devices/<deviceId>/telemetry`
-- `device_id` should match the topic `<deviceId>`.
+- Topic format: `vts/devices/<imei>/telemetry`
+- `imei_no` should match the topic `<imei>` when present.
 - `ignition` is optional; if omitted, the backend assumes `true`.
 
 ## Two-way firmware testing
 
-The current backend consumes telemetry from MQTT but does not yet publish control commands on its own. To test device downlink, publish a command manually to the same broker instance the firmware uses.
+The current backend can publish interval commands through `POST /devices/:deviceId/interval` and waits for a matching ACK. Manual MQTT publish is still useful for isolating firmware or broker behavior.
 
 Subscribe to ACKs:
 

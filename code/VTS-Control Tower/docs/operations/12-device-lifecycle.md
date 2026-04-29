@@ -14,21 +14,21 @@ Recommended lifecycle:
 
 ## Current Backend Model
 
-Current device statuses:
+Current device statuses implemented in [Device entity](../../../vts-backend/src/modules/devices/device.entity.ts):
 
-- `pending_registration`
 - `assigned`
 - `unassigned`
 
-Important distinction:
+Current implementation notes:
 
-- `pending_registration` = device was discovered via telemetry but has not been approved and bound yet
-- `unassigned` = device exists as a known record, but is intentionally not currently bound to a vehicle
-- `unassigned` is not the same as `pending_registration`
+- devices are created explicitly through the backend API
+- `unassigned` means the device exists, belongs to a college, and is not bound to a vehicle
+- `assigned` means the device is bound to a vehicle and can feed operational telemetry
+- `pending_registration` is a recommended future state, but it is not implemented in the current entity
 
-Current implementation:
+Current telemetry interval storage:
 
-- [Device entity](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/modules/devices/device.entity.ts#L1)
+- `telemetryIntervalMs` lives on the device record and defaults to `5000`
 
 ## Lifecycle Flow
 
@@ -36,10 +36,9 @@ Current implementation:
 Unknown firmware device boots
   -> telemetry reaches backend
   -> backend validates topic and payload
-  -> backend creates or updates `pending_registration` device record
-  -> backend stores quarantined payload summary
-  -> admin reviews pending device
-  -> admin binds device to college and vehicle
+  -> current backend ignores unknown-device telemetry after logging
+  -> admin creates the device record with `deviceId`, `imei`, and college scope
+  -> admin assigns the device to a vehicle
   -> future telemetry enters normal operational path
   -> events/trips/notifications derive only after valid assignment
   -> device may go offline and queue data
@@ -64,9 +63,10 @@ Current simulator and sample firmware do not fully implement this yet.
 
 Current backend behavior:
 
-- ingestion quarantines unknown or unassigned devices instead of mutating operational fleet state
-- pending devices are tracked for later admin registration
-- historical quarantined telemetry is not replayed automatically into trip/event pipelines after assignment
+- unknown devices are ignored after logging and do not mutate fleet state
+- known but unassigned devices are ignored by the operational ingestion path
+- the current schema does not store quarantine rows or pending-device discovery metadata
+- historical ignored telemetry is not replayed automatically after assignment
 
 ## Retirement
 

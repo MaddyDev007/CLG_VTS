@@ -4,21 +4,23 @@ The backend can run locally with `npm`, or as part of the repo-level Docker Comp
 
 ## Local backend workflow
 
+Run these commands from the repository root.
+
 1. Start shared infrastructure:
 ```bash
-docker compose -f ../../docker-compose.yml up -d postgres mosquitto
+docker compose up -d postgres mosquitto
 ```
 
 2. Start the backend:
 ```bash
-cd vts-backend
+cd code/vts-backend
 npm ci
 npm run start:dev
 ```
 
-3. Start the frontend from `../vts-frontend` when needed:
+3. Start the frontend when needed:
 ```bash
-cd vts-frontend
+cd code/vts-frontend
 npm ci
 npm run dev
 ```
@@ -33,7 +35,7 @@ The production-oriented compose file lives at:
 
 Use the EC2 deployment guide for the exact env files, build commands, simulator profile, and low-memory recommendations:
 
-- [/home/maheshkumar/projects/CLG_VTS/code/VTS-Control Tower/docs/operations/docker-guide.md](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/operations/docker-guide.md)
+- [docker-guide.md](../VTS-Control%20Tower/docs/operations/docker-guide.md)
 
 Key runtime notes:
 - Backend routes are expected under `/api` in the Docker deployment path.
@@ -43,5 +45,5 @@ Key runtime notes:
 ## Docs
 Project documentation has been centralized in Control Tower:
 
-- `/home/maheshkumar/projects/CLG_VTS/code/VTS-Control Tower/docs/README.md`
-- backend reference docs: `/home/maheshkumar/projects/CLG_VTS/code/VTS-Control Tower/docs/reference/backend`
+- [Control Tower docs](../VTS-Control%20Tower/docs/README.md)
+- [backend reference docs](../VTS-Control%20Tower/docs/reference/backend)

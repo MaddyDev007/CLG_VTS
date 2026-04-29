@@ -25,14 +25,14 @@ Check:
 - topic format
 - payload schema
 - device assignment in DB
-- pending/quarantine device status
+- current device status (`assigned` or `unassigned`)
 
 Relevant files:
 
-- [mqtt.config.ts](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/config/mqtt.config.ts#L1)
-- [mqtt.service.ts](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/mqtt/mqtt.service.ts#L1)
-- [telemetry.handler.ts](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/mqtt/telemetry.handler.ts#L1)
-- [devices.service.ts](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/modules/devices/devices.service.ts#L1)
+- [mqtt.config.ts](../../../vts-backend/src/config/mqtt.config.ts)
+- [mqtt.service.ts](../../../vts-backend/src/mqtt/mqtt.service.ts)
+- [telemetry.handler.ts](../../../vts-backend/src/mqtt/telemetry.handler.ts)
+- [devices.service.ts](../../../vts-backend/src/modules/devices/devices.service.ts)
 
 ## 2. Telemetry Arrives But Vehicle Does Not Update
 
@@ -42,7 +42,7 @@ Check:
 - `vehicleId` resolution
 - malformed numeric fields
 - signal/lat/lon validity
-- whether the message was quarantined as `unknown_device`, `unassigned_device`, or `malformed_payload`
+- whether the message was ignored because the device is unknown, unassigned, or the payload is malformed
 
 Telemetry missing in UI?
 
@@ -50,11 +50,9 @@ Check:
 
 1. device exists
 2. device is assigned
-3. message exists in the quarantine table
-4. ingestion reason:
-   - `unknown_device`
-   - `unassigned_device`
-   - `malformed_payload`
+3. topic segment matches the registered device IMEI for MQTT telemetry
+4. payload numeric fields are valid
+5. backend logs show the MQTT message reached `TelemetryHandler`
 
 ## 3. Vehicle Moves While Unassigned
 
@@ -65,7 +63,7 @@ Check:
 - device assignment cleanup
 - ingestion path allowing orphaned device data
 - stale simulator device publishing
-- quarantine branch accidentally bypassed
+- safe ingestion guard accidentally bypassed
 
 ## 4. Geofence Alerts Missing Names
 
@@ -77,7 +75,7 @@ Check:
 
 Relevant file:
 
-- [TelemetryService](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/modules/telemetry/telemetry.service.ts#L1)
+- [TelemetryService](../../../vts-backend/src/modules/telemetry/telemetry.service.ts)
 
 ## 5. Stop / Idling / Overspeed Mismatch
 
@@ -90,8 +88,8 @@ Check:
 
 Relevant files:
 
-- [EventsService](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/modules/events/events.service.ts#L1)
-- [StopEventsService](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/modules/events/stop-events.service.ts#L1)
+- [EventsService](../../../vts-backend/src/modules/events/events.service.ts)
+- [StopEventsService](../../../vts-backend/src/modules/events/stop-events.service.ts)
 
 ## 6. Frontend Shows Wrong College Data
 
@@ -103,8 +101,8 @@ Check:
 
 Relevant files:
 
-- [useCurrentCollegeContext.ts](/home/user/Desktop/codex%20vts%20v2/vts-frontend/src/hooks/useCurrentCollegeContext.ts#L1)
-- [access-scope.service.ts](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/common/services/access-scope.service.ts#L1)
+- [collegeFilterStore.ts](../../../vts-frontend/src/store/collegeFilterStore.ts)
+- [tenant-scope.ts](../../../vts-backend/src/common/tenant/tenant-scope.ts)
 
 ## 7. Playback Duration Looks Wrong
 
@@ -129,7 +127,7 @@ Current local workflow:
 
 See:
 
-- [local-testing-guide.md](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/operations/local-testing-guide.md)
+- [local-testing-guide.md](local-testing-guide.md)
 
 Current shared MQTT test choice:
 
@@ -145,7 +143,7 @@ Always trace the same telemetry sample across:
 - publish payload
 - MQTT topic
 - backend handler
-- quarantine row or DB row
+- backend log or telemetry DB row
 - event/trip rows
 - API response
 - UI display
@@ -155,7 +153,8 @@ Always trace the same telemetry sample across:
 If telemetry arrives before device registration:
 
 1. confirm the payload reached MQTT with the expected topic
-2. confirm `TelemetryHandler` extracted `deviceId`
-3. check `devices` for `pending_registration`
-4. check `pending_device_messages` for updated `firstSeenAt`, `lastSeenAt`, and `messageCount`
-5. confirm no `telemetry`, `trip`, `event`, or vehicle-status mutation was created
+2. confirm `TelemetryHandler` extracted the topic identifier
+3. check that `devices.imei` contains that identifier
+4. create/register the device if it is missing
+5. assign it to a vehicle before expecting operational telemetry
+6. confirm no `telemetry`, `trip`, `event`, or vehicle-status mutation was created before assignment

@@ -142,6 +142,23 @@ Note: `stopped` is derived in the frontend as `total - moving - idling - offline
 { "success": true, "device": { "id": "<uuid>" } }
 ```
 
+### POST /devices/:deviceId/interval
+- Path params: `deviceId` (logical device UID, e.g. `VTU_001`)
+- Body:
+```json
+{ "interval": 10000 }
+```
+- `interval` must be an integer from `1000` to `60000` milliseconds.
+- Behavior: publishes `{"type":"config_update","interval":10000}` to `vts/devices/{deviceId}/commands`, waits up to 10 seconds for a matching ACK on `vts/devices/{deviceId}/ack`, then stores the ACKed interval on the device record.
+- Success response:
+```json
+{ "status": "success", "interval": 10000, "timestamp": "2026-04-29T10:00:00.000Z" }
+```
+- Timeout response:
+```json
+{ "status": "timeout" }
+```
+
 ---
 
 ## Telemetry
@@ -159,11 +176,10 @@ GET /telemetry?vehicleId=<uuid>&ignition=true
 - Response: list of telemetry records
 
 ### POST /telemetry
-- Auth: None
 - Body:
 ```json
 {
-  "deviceId": "VTU_001",
+  "imei_no": "867451234567890",
   "lat": 11.2588,
   "lon": 75.7804,
   "speed": 45,
@@ -198,7 +214,7 @@ GET /telemetry?vehicleId=<uuid>&ignition=true
 - Response: overspeed event
 
 ### GET /events/overspeed/:id/playback
-- Response: playback points (currently returns empty array)
+- Response: telemetry playback points between the overspeed event start and end time
 
 ### GET /events/idling
 - Query params (optional): `vehicleId`, `minDuration`, `startDate`, `endDate`
@@ -218,7 +234,7 @@ GET /telemetry?vehicleId=<uuid>&ignition=true
 - Response: stop event
 
 ### GET /events/stop/:id/playback
-- Response: playback points (currently returns empty array)
+- Response: telemetry playback points between the stop start and end time
 
 ---
 
@@ -293,8 +309,12 @@ GET /telemetry?vehicleId=<uuid>&ignition=true
 { "success": true, "message": "Geofence deleted" }
 ```
 
-### GET /stops
+### GET /geofences/stops
 - Response: list of geofences with `isStop = true`
+
+### GET /stop-events
+- Query params: `fromDate` and `toDate` are required; optional `vehicleId`, `minDuration`, `maxDuration`
+- Response: stop events derived from telemetry ignition transitions
 
 ---
 
@@ -345,6 +365,9 @@ GET /telemetry?vehicleId=<uuid>&ignition=true
 ---
 
 ## Profile
+
+### GET /profile
+- Response: current authenticated profile
 
 ### GET /profile/preferences
 - Response:
@@ -426,7 +449,11 @@ GET /telemetry?vehicleId=<uuid>&ignition=true
 { "success": true, "user": { "id": "<uuid>" } }
 ```
 
-### PATCH /users/:userId/disable
+### PATCH /users/:userId/status
+- Body:
+```json
+{ "status": "disabled" }
+```
 - Response:
 ```json
 { "success": true, "user": { "id": "<uuid>" } }

@@ -130,7 +130,7 @@ Important:
 Start from the repo root:
 
 ```bash
-cd /home/maheshkumar/projects/CLG_VTS
+cd <repo-root>
 ```
 
 On first setup only:
@@ -142,7 +142,7 @@ cp .env.example .env
 Start the local Docker stack:
 
 ```bash
-cd /home/maheshkumar/projects/CLG_VTS
+cd <repo-root>
 docker compose up -d --build
 ```
 
@@ -162,7 +162,7 @@ Quick answer:
 Start the simulator only when you need it:
 
 ```bash
-cd /home/maheshkumar/projects/CLG_VTS
+cd <repo-root>
 docker compose --profile simulator up -d --build vts-device-simulator
 ```
 

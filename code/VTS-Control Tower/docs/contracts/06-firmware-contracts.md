@@ -61,7 +61,7 @@ Must support:
 - credentials if used
 - debug level
 
-Firmware deployment config lives in [config.h](/home/user/Desktop/Maddy Git/CLG_VTS/Firmware/include/config.h), which is the source of truth for:
+Firmware deployment config lives in [config.h](../../../Firmware/include/config.h), which is the source of truth for:
 
 - `DEVICE_ID`
 - `MQTT_BROKER`
@@ -75,7 +75,7 @@ Firmware deployment config lives in [config.h](/home/user/Desktop/Maddy Git/CLG_
 Broker requirement:
 
 - firmware must connect to the same MQTT broker instance the backend subscribes to
-- current old-backend stack broker is Mosquitto on port `1883`
+- current stack broker is Mosquitto on port `1883`
 - if the backend runs in Docker, the backend uses `mqtt://mosquitto:1883` internally but firmware must use the host machine LAN/public IP or domain
 - `localhost` is not a valid firmware broker unless the broker truly runs on the device itself
 - if backend uses Mosquitto on another machine, firmware must use that machine's reachable LAN/public IP or domain
@@ -86,14 +86,14 @@ Identity requirement:
 
 ## Current-State Notes
 
-Current sample firmware in [Firmware/src/main.cpp](/home/user/Desktop/Maddy Git/CLG_VTS/Firmware/src/main.cpp):
+Current sample firmware in [Firmware/src/main.cpp](../../../Firmware/src/main.cpp):
 
-- consumes deployment settings from [config.h](/home/user/Desktop/Maddy Git/CLG_VTS/Firmware/include/config.h) instead of redefining broker/device/pin defaults in code
+- consumes deployment settings from [config.h](../../../Firmware/include/config.h) instead of redefining broker/device/pin defaults in code
 - validates MQTT open, connect, and publish acknowledgements before reporting success
 - retries MQTT connection with bounded reconnect backoff
 - publishes directly to MQTT
-- publishes old-backend-compatible telemetry to `vts/devices/{deviceId}/telemetry`
-- emits the old backend payload fields: `device_id`, `timestamp`, `lat`, `lon`, `speed_kmph`, `ignition`, `battery_mv`, `signal_dbm`
+- current backend MQTT lookup expects telemetry on `vts/devices/{imei}/telemetry`
+- emits the compatibility payload fields: `imei_no`, `timestamp`, `lat`, `lon`, `speed_kmph`, `ignition`, `battery_mv`, `signal_dbm`
 - publishes identity on MQTT connect to `vts/devices/{deviceId}/identity`
 - subscribes on MQTT connect to `vts/devices/{deviceId}/commands`
 - parses `+QMTRECV` modem notifications to receive downlink commands
@@ -104,8 +104,8 @@ Current sample firmware in [Firmware/src/main.cpp](/home/user/Desktop/Maddy Git/
 - keeps a bounded in-memory oldest-first queue when telemetry publish fails
 - logs broker, port, client id, and MQTT topics at boot/connect time
 - fails loudly when `MQTT_BROKER` is blank, placeholder, or loopback-only
-- derives ISO timestamps from GNSS date/time when available so the old backend accepts them directly
-- omits the `timestamp` field when GNSS date/time is not parseable so the old backend can fall back to server time
+- derives ISO timestamps from GNSS date/time when available so the current backend accepts them directly
+- omits the `timestamp` field when GNSS date/time is not parseable so the current backend can fall back to server time
 - uses `IGNITION_PIN` from config and only falls back when that pin is explicitly disabled
 - does not yet provide durable store-and-forward persistence across device reboot
 - still uses best-effort modem parsing for IMSI, signal, and battery values

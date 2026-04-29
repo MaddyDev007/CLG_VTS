@@ -11,7 +11,7 @@
 
 Primary runtime path:
 
-- [TelemetryHandler](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/mqtt/telemetry.handler.ts#L1)
+- [TelemetryHandler](../../../vts-backend/src/mqtt/telemetry.handler.ts)
 
 ## Overspeed
 
@@ -23,7 +23,7 @@ Current logic:
 
 Source of truth:
 
-- [EventsService.createOverspeed](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/modules/events/events.service.ts#L1)
+- [EventsService.createOverspeed](../../../vts-backend/src/modules/events/events.service.ts)
 
 ## Idling
 
@@ -32,7 +32,7 @@ Current logic:
 - ignition on
 - speed equals zero
 - sustained for configured threshold
-- backend creates idling event on exit from the idling state
+- backend creates idling event once the threshold is reached, updates it while idling continues, and finalizes it when motion resumes or ignition turns off
 
 Current threshold:
 
@@ -47,7 +47,7 @@ Current logic:
 
 Source of truth:
 
-- [StopEventsService](/home/user/Desktop/codex%20vts%20v2/vts-backend/src/modules/events/stop-events.service.ts#L1)
+- [StopEventsService](../../../vts-backend/src/modules/events/stop-events.service.ts)
 
 Important rule:
 
@@ -57,7 +57,7 @@ Important rule:
 
 Current trip logic:
 
-- start when ignition/movement indicates a trip
+- start or resume when ignition is true and a valid assigned-device telemetry sample arrives
 - accumulate distance incrementally
 - add playback points during active trip
 - end after ignition-off timeout
@@ -65,7 +65,7 @@ Current trip logic:
 Current protections:
 
 - large GPS spikes are skipped
-- active trip state is held in memory by `TelemetryHandler`
+- active trip/event state is held by `TelemetryStateService`, which uses Redis when configured and otherwise falls back to memory
 
 ## Geofence Events
 

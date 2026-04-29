@@ -27,7 +27,7 @@ Codex must never:
 
 - promote unknown or unassigned telemetry into the operational pipeline
 - create vehicles automatically from telemetry
-- bypass the quarantine layer
+- bypass safe ingestion guards for unknown or unassigned devices
 
 ## Cross-Repo Change Rules
 
@@ -54,7 +54,7 @@ If changing ingestion or device discovery:
 
 - preserve the three safe branches: known+assigned, known+unassigned, unknown
 - never auto-create vehicles from telemetry
-- quarantine unknown or unassigned payloads instead of dropping them silently
+- keep unknown and unassigned payloads out of the operational pipeline; if quarantine storage is implemented, document and test it in the same change
 - update device lifecycle and debugging docs in the same task
 
 ## Time Rules

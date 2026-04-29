@@ -11,12 +11,13 @@ Implemented today:
 - device publishes telemetry
 - device publishes identity on connect
 - device subscribes for commands
+- backend publishes telemetry interval commands through `POST /devices/{deviceId}/interval`
+- backend subscribes to `vts/devices/+/ack` and waits up to 10 seconds for the matching interval ACK
 - device applies runtime telemetry interval updates
 - device publishes ACK after successful config update
 
 Not implemented yet:
 
-- backend API endpoint for command publishing
 - frontend control screen for live device configuration
 - persistent command audit/history in backend
 
@@ -34,14 +35,14 @@ If these clients point at different brokers, telemetry may work in one place whi
 
 ## Topics
 
-- Telemetry: `vts/devices/{deviceId}/telemetry`
+- Telemetry: `vts/devices/{imei}/telemetry` for current backend ingestion
 - Identity: `vts/devices/{deviceId}/identity`
 - Commands: `vts/devices/{deviceId}/commands`
 - ACK: `vts/devices/{deviceId}/ack`
 
 Example for `deviceId = VTU_001`:
 
-- `vts/devices/VTU_001/telemetry`
+- `vts/devices/867451234567890/telemetry`
 - `vts/devices/VTU_001/identity`
 - `vts/devices/VTU_001/commands`
 - `vts/devices/VTU_001/ack`
@@ -80,7 +81,7 @@ On success, firmware publishes:
 
 ### 1. Confirm firmware broker config
 
-Check [config.h](/home/user/Desktop/Maddy%20Git/CLG_VTS/Firmware/include/config.h):
+Check [config.h](../../../Firmware/include/config.h):
 
 - `MQTT_BROKER`
 - `MQTT_PORT`
@@ -103,7 +104,34 @@ mosquitto_sub -h <broker-host> -p 1883 -t "vts/devices/VTU_001/ack" -v
 
 Replace `VTU_001` with the actual firmware `DEVICE_ID`.
 
-### 3. Send control command
+### 3. Send control command through the backend
+
+```bash
+curl -X POST http://localhost:3000/devices/VTU_001/interval \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"interval":10000}'
+```
+
+Successful ACK response:
+
+```json
+{
+  "status": "success",
+  "interval": 10000,
+  "timestamp": "2026-04-29T10:00:00.000Z"
+}
+```
+
+Timeout response:
+
+```json
+{
+  "status": "timeout"
+}
+```
+
+### 4. Or send control command manually
 
 ```bash
 mosquitto_pub -h <broker-host> -p 1883 -t "vts/devices/VTU_001/commands" -m '{
@@ -112,7 +140,7 @@ mosquitto_pub -h <broker-host> -p 1883 -t "vts/devices/VTU_001/commands" -m '{
 }'
 ```
 
-### 4. Verify on serial logs
+### 5. Verify on serial logs
 
 Expected firmware logs:
 
@@ -124,7 +152,7 @@ Expected firmware logs:
 - `Telemetry interval updated to 10000 ms`
 - `Publishing ACK topic: vts/devices/VTU_001/ack`
 
-### 5. Verify behavior change
+### 6. Verify behavior change
 
 Before the command, telemetry should be sent about every `5000 ms`.
 
@@ -176,21 +204,18 @@ Expected behavior:
 - firmware does not apply the invalid change
 - firmware does not publish a success ACK
 
-## What Changed In Code
+## Current Code Touchpoints
 
-Firmware-only changes were made in [main.cpp](/home/user/Desktop/Maddy%20Git/CLG_VTS/Firmware/src/main.cpp).
+- firmware command handling lives in [main.cpp](../../../Firmware/src/main.cpp)
+- backend command publishing lives in [DeviceCommandService](../../../vts-backend/src/mqtt/device-command.service.ts)
+- backend ACK tracking lives in [DeviceAckService](../../../vts-backend/src/mqtt/device-ack.service.ts)
+- backend API entrypoint is `POST /devices/:deviceId/interval` in [DevicesController](../../../vts-backend/src/modules/devices/devices.controller.ts)
 
-No backend code or frontend code was changed for this first two-way communication step.
-
-That means:
-
-- backend telemetry ingestion continues to work as before
-- frontend dashboards continue to work as before
-- command sending must currently be done by manual MQTT publish or a future backend feature
+The frontend dashboard does not currently expose a live interval-control screen.
 
 ## Practical Conclusion
 
-For your current testing, yes: you mainly need to send JSON to the command topic on the same MQTT server used by telemetry publish.
+For current testing, prefer the backend API when you want to verify the full command/ACK flow. Use manual MQTT publish only when isolating firmware or broker behavior.
 
 Use:
 

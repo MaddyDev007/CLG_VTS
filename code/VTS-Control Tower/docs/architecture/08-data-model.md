@@ -57,22 +57,18 @@ Migration target:
 
 - `id: uuid`
 - `deviceId: string`
-- `imei: string | null`
-- `collegeId: uuid | null`
+- `imei: string`
+- `collegeId: uuid`
+- `telemetryIntervalMs: number`
 - `assignedVehicleId: uuid | null`
 - `assignedVehicleName: string | null`
-- `status: assigned | unassigned | pending_registration`
-- `firstSeenAt: timestamp | null`
-- `lastSeenAt: timestamp | null`
-- `lastTelemetryTimestamp: timestamp | null`
-- `discoveryMessageCount: number`
-- `lastKnownLat: number | null`
-- `lastKnownLng: number | null`
-- `lastKnownSignal: number | null`
-- `lastKnownBattery: number | null`
-- `lastQuarantineReason: unknown_device | unassigned_device | malformed_payload | null`
+- `status: assigned | unassigned`
+- `createdAt: timestamp`
+- `updatedAt: timestamp`
 
-## `pending_device_messages`
+## Future `pending_device_messages`
+
+This quarantine table is a recommended future model. It is not implemented in the current backend schema.
 
 - `id: uuid`
 - `deviceId: string`
@@ -124,7 +120,8 @@ Required fields:
 Operational rule:
 
 - only known, assigned devices may create rows in `telemetry`
-- unknown or unassigned device messages must be held in `pending_device_messages` instead
+- current backend ignores unknown or unassigned MQTT telemetry without creating operational rows
+- future quarantine work should hold unknown or unassigned device messages in `pending_device_messages`
 
 ## `trips`
 
@@ -195,4 +192,4 @@ Required fields:
 - `route_stops` may remain route-owned rather than storing a duplicated `collegeId`.
 - `profile_preferences` remain user-owned rather than device/vehicle-owned.
 - stop events are currently derived from telemetry and intentionally not persisted as a second write path.
-- `pending_device_messages` is intentionally deduplicated by `deviceId` to avoid unbounded DB growth from repeated unknown-device retries.
+- the future `pending_device_messages` table should be deduplicated by `deviceId` to avoid unbounded DB growth from repeated unknown-device retries.

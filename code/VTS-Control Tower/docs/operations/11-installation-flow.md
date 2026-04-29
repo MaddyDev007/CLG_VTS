@@ -8,10 +8,10 @@ This is the operational device installation sequence that firmware, backend, and
 - record `deviceId` and `imei`
 - confirm target college and vehicle assignment policy
 - verify SIM and LTE provisioning
-- set firmware deployment values in [config.h](/home/user/Desktop/Maddy Git/CLG_VTS/Firmware/include/config.h)
+- set firmware deployment values in [config.h](../../../Firmware/include/config.h)
 - ensure `DEVICE_ID` exactly matches the backend device record
 - ensure `MQTT_BROKER` points to the same broker instance the backend subscribes to
-- current old-backend stack uses Mosquitto on port `1883`
+- current stack uses Mosquitto on port `1883`
 
 Broker rule:
 
@@ -44,9 +44,9 @@ Rules:
 
 Current firmware note:
 
-- [config.h](/home/user/Desktop/Maddy Git/CLG_VTS/Firmware/include/config.h) defines `IGNITION_PIN`
-- sample firmware in [main.cpp](/home/user/Desktop/Maddy Git/CLG_VTS/Firmware/src/main.cpp) uses `IGNITION_PIN` directly and only falls back when the pin is disabled
-- sample firmware in [main.cpp](/home/user/Desktop/Maddy Git/CLG_VTS/Firmware/src/main.cpp) still does not provide production-grade durable queue persistence across reboot
+- [config.h](../../../Firmware/include/config.h) defines `IGNITION_PIN`
+- sample firmware in [main.cpp](../../../Firmware/src/main.cpp) uses `IGNITION_PIN` directly and only falls back when the pin is disabled
+- sample firmware in [main.cpp](../../../Firmware/src/main.cpp) still does not provide production-grade durable queue persistence across reboot
 
 ## First-Time Activation
 

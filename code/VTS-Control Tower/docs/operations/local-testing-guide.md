@@ -9,7 +9,7 @@ Use this flow when you want fast feedback with local `npm` processes before rebu
 From the repository root:
 
 ```bash
-cd /home/maheshkumar/projects/CLG_VTS
+cd <repo-root>
 docker compose up -d postgres mosquitto
 ```
 
@@ -66,7 +66,7 @@ Expected URLs:
 Stop local app processes first, then rebuild containers:
 
 ```bash
-cd /home/maheshkumar/projects/CLG_VTS
+cd <repo-root>
 COMPOSE_PARALLEL_LIMIT=1 docker compose build backend frontend
 docker compose up -d
 ```

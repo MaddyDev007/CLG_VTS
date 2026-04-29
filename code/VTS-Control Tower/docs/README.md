@@ -4,21 +4,21 @@ This is the single documentation hub for the full VTS workspace.
 
 Use these folders:
 
-- [architecture](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/architecture): system overview, repository layout, data model, and event flow
-- [contracts](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/contracts): backend, frontend, firmware, simulator, and messaging contracts
-- [operations](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/operations): Docker, local testing, installation, debugging, and lifecycle guides
-- [development](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/development): performance and Codex engineering rules
-- [reference](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/reference): backend reference docs and archived legacy notes
+- [architecture](architecture): system overview, repository layout, data model, and event flow
+- [contracts](contracts): backend, frontend, firmware, simulator, and messaging contracts
+- [operations](operations): Docker, local testing, installation, debugging, and lifecycle guides
+- [development](development): performance and Codex engineering rules
+- [reference](reference): backend reference docs and archived legacy notes
 
 ## Suggested Reading Order
 
 Start here if you are new:
 
-1. [architecture/00-overview.md](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/architecture/00-overview.md)
-2. [architecture/01-architecture.md](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/architecture/01-architecture.md)
-3. [contracts/03-messaging-spec.md](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/contracts/03-messaging-spec.md)
-4. [operations/local-testing-guide.md](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/operations/local-testing-guide.md)
-5. [operations/docker-guide.md](/home/maheshkumar/projects/CLG_VTS/code/VTS-Control%20Tower/docs/operations/docker-guide.md)
+1. [architecture/00-overview.md](architecture/00-overview.md)
+2. [architecture/01-architecture.md](architecture/01-architecture.md)
+3. [contracts/03-messaging-spec.md](contracts/03-messaging-spec.md)
+4. [operations/local-testing-guide.md](operations/local-testing-guide.md)
+5. [operations/docker-guide.md](operations/docker-guide.md)
 
 ## What Was Cleaned Up
 

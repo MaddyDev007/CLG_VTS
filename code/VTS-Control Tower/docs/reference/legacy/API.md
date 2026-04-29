@@ -815,11 +815,11 @@
       "response": { "success": true, "user": { "id": "string" } }
     },
     {
-      "id": "users.disable",
+      "id": "users.status",
       "method": "PATCH",
-      "path": "/users/:userId/disable",
+      "path": "/users/:userId/status",
       "requiredByUI": true,
-      "request": {},
+      "request": { "status": "disabled" },
       "response": { "success": true, "user": { "id": "string" } }
     },
     {

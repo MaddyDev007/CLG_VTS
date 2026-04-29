@@ -6,7 +6,7 @@ This document lists backend-derived data that is calculated before being stored 
 
 | Field / Value | File | Function | Calculation Logic | Stored or Returned | Meaning |
 | --- | --- | --- | --- | --- | --- |
-| `deviceId` fallback | `vts-backend/src/mqtt/telemetry.handler.ts` | `handle()` | Uses `data.device_id` or parses device id from MQTT topic `vts/devices/{id}/telemetry` | used for processing | Allows telemetry ingestion even when payload omits device id. |
+| telemetry device lookup | `vts-backend/src/mqtt/telemetry.handler.ts` | `handle()` | Parses the topic segment from `vts/devices/{imei}/telemetry` and uses it as `imei_no` for device lookup | used for processing | Allows MQTT telemetry ingestion based on the registered device IMEI. |
 | `timestamp` fallback | `vts-backend/src/mqtt/telemetry.handler.ts` | `handle()` | Uses `payload.timestamp` if present, otherwise `new Date()` | stored in `telemetry.timestamp` | Ensures all telemetry rows have a timestamp. |
 | `record` normalization | `vts-backend/src/mqtt/telemetry.handler.ts` | `handle()` | Coerces `lat/lon/speed/battery/signal` to numbers, sets `address` empty | stored in `telemetry` | Normalizes incoming telemetry into numeric fields. |
 | `vehicle.status` (MQTT path) | `vts-backend/src/mqtt/telemetry.handler.ts` | `handle()` | `maintenance` stays; else `speed > 5 ? moving : speed > 0 ? idling : offline` | stored in `vehicles.status` | Live status classification based on speed and maintenance override. |

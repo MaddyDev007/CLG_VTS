@@ -1,9 +1,9 @@
 #pragma once
 
 // Firmware deployment settings live here.
-// This firmware is adapted to the old backend stack in this workspace.
-// The old backend subscribes to the same MQTT broker instance used by firmware.
-// When the old backend runs with Docker, it connects to the broker container as
+// This firmware is adapted to the current backend stack in this workspace.
+// The backend subscribes to the same MQTT broker instance used by firmware.
+// When the backend runs with Docker, it connects to the broker container as
 // "mosquitto", but the ESP32 must use the host machine's reachable LAN/public
 // IP or domain here. Do not use localhost unless the broker truly runs on the
 // device itself and is reachable from firmware.
@@ -45,7 +45,7 @@
 #ifndef DEVICE_ID
 #define DEVICE_ID "TEC_DEV_001"
 #endif
-// DEVICE_ID must match the old backend device record used for assigned-device flow.
+// DEVICE_ID must match the backend device record used for command/ACK flow.
 
 #ifndef DEVICE_IMEI
 #define DEVICE_IMEI ""
