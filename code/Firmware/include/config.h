@@ -27,7 +27,7 @@
 // firmware fallback state temporarily during bench testing.
 
 #ifndef MQTT_BROKER
-#define MQTT_BROKER "16.112.201.36"
+#define MQTT_BROKER "51.20.207.250"
 #endif
 
 #ifndef MQTT_PORT
