@@ -5,8 +5,8 @@ import { MqttService } from './mqtt.service'
 export class DeviceCommandService {
   constructor(private readonly mqttService: MqttService) {}
 
-  async sendIntervalUpdate(deviceId: string, interval: number) {
-    const topic = `vts/devices/${deviceId}/commands`
+  async sendIntervalUpdate(imei: string, interval: number) {
+    const topic = `vts/devices/${imei}/commands`
     const payload = JSON.stringify({
       type: 'config_update',
       interval,

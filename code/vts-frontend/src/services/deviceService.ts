@@ -77,8 +77,8 @@ class DeviceService {
     return response
   }
 
-  async updateTelemetryInterval(deviceId: string, interval: number): Promise<UpdateDeviceIntervalResponse> {
-    const response = await apiClient.post<UpdateDeviceIntervalResponse>(`/devices/${deviceId}/interval`, { interval })
+  async updateTelemetryInterval(imei: string, interval: number): Promise<UpdateDeviceIntervalResponse> {
+    const response = await apiClient.post<UpdateDeviceIntervalResponse>(`/devices/${imei}/interval`, { interval })
     invalidateDataSync(['devices'])
     return response
   }

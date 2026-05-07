@@ -11,8 +11,8 @@ Implemented today:
 - device publishes telemetry
 - device publishes identity on connect
 - device subscribes for commands
-- backend publishes telemetry interval commands through `POST /devices/{deviceId}/interval`
-- backend subscribes to `vts/devices/+/ack` and waits up to 10 seconds for the matching interval ACK
+- backend publishes telemetry interval commands through `POST /devices/{imei}/interval`
+- backend publishes the MQTT command to the device IMEI topic and waits up to 10 seconds for the matching interval ACK
 - device applies runtime telemetry interval updates
 - device publishes ACK after successful config update
 
@@ -36,16 +36,16 @@ If these clients point at different brokers, telemetry may work in one place whi
 ## Topics
 
 - Telemetry: `vts/devices/{imei}/telemetry` for current backend ingestion
-- Identity: `vts/devices/{deviceId}/identity`
-- Commands: `vts/devices/{deviceId}/commands`
-- ACK: `vts/devices/{deviceId}/ack`
+- Identity: `vts/devices/{imei}/identity`
+- Commands: `vts/devices/{imei}/commands`
+- ACK: `vts/devices/{imei}/ack`
 
-Example for `deviceId = VTU_001`:
+Example for `imei = 867451234567890`:
 
 - `vts/devices/867451234567890/telemetry`
-- `vts/devices/VTU_001/identity`
-- `vts/devices/VTU_001/commands`
-- `vts/devices/VTU_001/ack`
+- `vts/devices/867451234567890/identity`
+- `vts/devices/867451234567890/commands`
+- `vts/devices/867451234567890/ack`
 
 ## Command Payload
 
@@ -87,7 +87,7 @@ Check [config.h](../../../Firmware/include/config.h):
 - `MQTT_PORT`
 - `MQTT_USERNAME`
 - `MQTT_PASSWORD`
-- `DEVICE_ID`
+- `DEVICE_IMEI`
 
 Important:
 
@@ -99,15 +99,15 @@ Important:
 From a machine that can reach the broker:
 
 ```bash
-mosquitto_sub -h <broker-host> -p 1883 -t "vts/devices/VTU_001/ack" -v
+mosquitto_sub -h <broker-host> -p 1883 -t "vts/devices/867451234567890/ack" -v
 ```
 
-Replace `VTU_001` with the actual firmware `DEVICE_ID`.
+Replace `867451234567890` with the actual firmware IMEI.
 
 ### 3. Send control command through the backend
 
 ```bash
-curl -X POST http://localhost:3000/devices/VTU_001/interval \
+curl -X POST http://localhost:3000/devices/867451234567890/interval \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"interval":10000}'
@@ -134,7 +134,7 @@ Timeout response:
 ### 4. Or send control command manually
 
 ```bash
-mosquitto_pub -h <broker-host> -p 1883 -t "vts/devices/VTU_001/commands" -m '{
+mosquitto_pub -h <broker-host> -p 1883 -t "vts/devices/867451234567890/commands" -m '{
   "type":"config_update",
   "interval":10000
 }'
@@ -146,11 +146,11 @@ Expected firmware logs:
 
 - `AT+QMTSUB response:`
 - `+QMTSUB: 0,1,0`
-- `Subscribed to command topic: vts/devices/VTU_001/commands`
+- `Subscribed to command topic: vts/devices/867451234567890/commands`
 - `Incoming modem output:`
 - `MQTT command payload: {"type":"config_update","interval":10000}`
 - `Telemetry interval updated to 10000 ms`
-- `Publishing ACK topic: vts/devices/VTU_001/ack`
+- `Publishing ACK topic: vts/devices/867451234567890/ack`
 
 ### 6. Verify behavior change
 
@@ -209,7 +209,7 @@ Expected behavior:
 - firmware command handling lives in [main.cpp](../../../Firmware/src/main.cpp)
 - backend command publishing lives in [DeviceCommandService](../../../vts-backend/src/mqtt/device-command.service.ts)
 - backend ACK tracking lives in [DeviceAckService](../../../vts-backend/src/mqtt/device-ack.service.ts)
-- backend API entrypoint is `POST /devices/:deviceId/interval` in [DevicesController](../../../vts-backend/src/modules/devices/devices.controller.ts)
+- backend API entrypoint is `POST /devices/:imei/interval` in [DevicesController](../../../vts-backend/src/modules/devices/devices.controller.ts)
 
 The frontend dashboard does not currently expose a live interval-control screen.
 
@@ -220,11 +220,11 @@ For current testing, prefer the backend API when you want to verify the full com
 Use:
 
 - broker: same broker as firmware publish and backend subscribe
-- topic: `vts/devices/{deviceId}/commands`
+- topic: `vts/devices/{imei}/commands`
 - payload: `{"type":"config_update","interval":10000}`
 
 Then verify:
 
 - serial log shows the command was received
-- ACK arrives on `vts/devices/{deviceId}/ack`
+- ACK arrives on `vts/devices/{imei}/ack`
 - telemetry cadence changes

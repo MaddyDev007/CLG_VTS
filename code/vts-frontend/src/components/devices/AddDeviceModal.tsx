@@ -14,14 +14,14 @@ const DEVICE_ID_REGEX = /^[A-Z0-9_]{3,32}$/
 
 export function AddDeviceModal({ isOpen, onClose, onSuccess }: AddDeviceModalProps) {
   const collegeScopeRequired = isSuperAdminCollegeScopeRequired()
-  const [deviceId, setDeviceId] = useState('')
+  const [deviceName, setDeviceName] = useState('')
   const [imei, setImei] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!isOpen) {
-      setDeviceId('')
+      setDeviceName('')
       setImei('')
       setError('')
       setIsSubmitting(false)
@@ -41,8 +41,8 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess }: AddDeviceModalPro
       return
     }
 
-    if (!DEVICE_ID_REGEX.test(deviceId.trim())) {
-      setError('Device ID must be 3-32 chars (A-Z, 0-9, underscore)')
+    if (!DEVICE_ID_REGEX.test(deviceName.trim())) {
+      setError('Device name must be 3-32 chars (A-Z, 0-9, underscore)')
       return
     }
 
@@ -55,7 +55,7 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess }: AddDeviceModalPro
 
     try {
       await deviceService.createDevice({
-        deviceId: deviceId.trim(),
+        deviceId: deviceName.trim(),
         imei: imei.trim(),
       })
 
@@ -87,12 +87,12 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess }: AddDeviceModalPro
 
         <form className='space-y-3' onSubmit={handleSubmit}>
           <div>
-            <label className='mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200'>Device ID</label>
+            <label className='mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200'>Device Name</label>
             <input
-              value={deviceId}
-              onChange={(event) => setDeviceId(event.target.value.toUpperCase())}
+              value={deviceName}
+              onChange={(event) => setDeviceName(event.target.value.toUpperCase())}
               className='w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-600 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
-              placeholder='e.g. VTU_010'
+              placeholder='e.g. BUS_TRACKER_010'
             />
           </div>
 

@@ -76,22 +76,23 @@ export class DevicesController {
 
   @ApiOperation({ summary: 'Update telemetry interval and wait for device ACK' })
   @ApiResponse({ status: 200 })
-  @Post(':deviceId/interval')
+  @Post(':imei/interval')
   async updateInterval(
-    @Param('deviceId') deviceId: string,
+    @Param('imei') imei: string,
     @Body() payload: UpdateDeviceIntervalDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    const device = await this.devicesService.findByImei(imei, user)
     const sentAt = Date.now()
 
-    await this.deviceCommandService.sendIntervalUpdate(deviceId, payload.interval)
+    await this.deviceCommandService.sendIntervalUpdate(device.imei, payload.interval)
 
-    const ack = await this.deviceAckService.waitForAck(deviceId, payload.interval, sentAt)
+    const ack = await this.deviceAckService.waitForAck(device.imei, payload.interval, sentAt)
     if (!ack) {
       return { status: 'timeout' as const }
     }
 
-    await this.devicesService.updateTelemetryInterval(deviceId, ack.interval, user)
+    await this.devicesService.updateTelemetryInterval(device.deviceId, ack.interval, user)
 
     return {
       status: 'success' as const,

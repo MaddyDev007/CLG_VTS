@@ -17,7 +17,6 @@ const char* mqtt_password = MQTT_PASSWORD;
 const char* mqtt_client_prefix = "ESP32_LTE_GPS_Client_";
 const char* firmware_version = "0.2.0";
 
-const char* device_id = DEVICE_ID;
 const char* configured_device_imei = DEVICE_IMEI;
 const char* notify_number = "+917094332015"; // replace with your number
 
@@ -69,6 +68,7 @@ QueuedMessage telemetryQueue[telemetry_queue_capacity];
 int queueHead = 0;
 int queueCount = 0;
 unsigned long lastTelemetryPollAtMs = 0;
+String cachedDeviceImei = "";
 
 // ----------------------
 // Function prototypes
@@ -109,6 +109,7 @@ String buildIdentityTopic();
 String buildCommandTopic();
 String buildAckTopic();
 String buildMqttClientId();
+String getDeviceImei();
 String buildTelemetryJson(const TelemetrySample& sample);
 String buildIdentityJson();
 String buildAckJson(unsigned long intervalMs);
@@ -371,7 +372,7 @@ bool validateMqttBrokerConfig() {
 
 void logBootConfiguration() {
   Serial.println("Firmware boot configuration:");
-  Serial.println("  Device ID: " + String(device_id));
+  Serial.println("  IMEI: " + getDeviceImei());
   Serial.println("  MQTT Broker: " + String(mqtt_broker));
   Serial.println("  MQTT Port: " + String(mqtt_port));
   Serial.println("  MQTT Client: " + buildMqttClientId());
@@ -451,25 +452,42 @@ bool setupLTE() {
 }
 
 String buildMqttClientId() {
-  return String(mqtt_client_prefix) + String(device_id);
+  return String(mqtt_client_prefix) + getDeviceImei();
+}
+
+String getDeviceImei() {
+  if (cachedDeviceImei.length() > 0) {
+    return cachedDeviceImei;
+  }
+
+  String imei = readImei();
+  if (imei.length() > 0) {
+    cachedDeviceImei = imei;
+    return cachedDeviceImei;
+  }
+
+  String fallbackImei = String(configured_device_imei);
+  if (fallbackImei.length() > 0) {
+    cachedDeviceImei = fallbackImei;
+  }
+
+  return fallbackImei;
 }
 
 String buildTelemetryTopic() {
-  String imei = readImei();
-  String imeiNo = imei.length() > 0 ? imei : String(configured_device_imei);
-  return "vts/devices/" + imeiNo + "/telemetry";
+  return "vts/devices/" + getDeviceImei() + "/telemetry";
 }
 
 String buildIdentityTopic() {
-  return "vts/devices/" + String(device_id) + "/identity";
+  return "vts/devices/" + getDeviceImei() + "/identity";
 }
 
 String buildCommandTopic() {
-  return "vts/devices/" + String(device_id) + "/commands";
+  return "vts/devices/" + getDeviceImei() + "/commands";
 }
 
 String buildAckTopic() {
-  return "vts/devices/" + String(device_id) + "/ack";
+  return "vts/devices/" + getDeviceImei() + "/ack";
 }
 
 bool connectMQTT() {
@@ -728,7 +746,7 @@ void sendStartupSMS() {
   sendAT("AT+CMGF=1");
   sendAT("AT+CMGS=\"" + String(notify_number) + "\"");
   delay(500);
-  sim.print("Device " + String(device_id) + " started");
+  sim.print("Device IMEI " + getDeviceImei() + " started");
   delay(500);
   sim.write(0x1A);
   delay(2000);
@@ -777,9 +795,7 @@ bool parseGPS(const String& rawInput, TelemetrySample& sample) {
 
 String buildTelemetryJson(const TelemetrySample& sample) {
   String json = "{";
-  String imei = readImei();
-  String imeiNo = imei.length() > 0 ? imei : String(configured_device_imei);
-  json += "\"imei_no\":\"" + imeiNo + "\",";
+  json += "\"imei_no\":\"" + getDeviceImei() + "\",";
   if (sample.hasIsoTimestamp) {
     json += "\"timestamp\":\"" + sample.timestampIso + "\",";
   }
@@ -796,7 +812,7 @@ String buildTelemetryJson(const TelemetrySample& sample) {
 String buildIdentityJson() {
   String json = "{";
   json += "\"type\":\"identity\",";
-  json += "\"deviceId\":\"" + String(device_id) + "\",";
+  json += "\"imei_no\":\"" + getDeviceImei() + "\",";
   json += "\"imsi\":\"" + readImsi() + "\",";
   json += "\"firmwareVersion\":\"" + String(firmware_version) + "\"";
   json += "}";

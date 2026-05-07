@@ -9,9 +9,9 @@
 ## Topics
 - Backend subscribe: `vts/devices/+/telemetry`
 - Firmware/simulator publish: `vts/devices/{imei}/telemetry` for the current backend lookup path
-- Firmware identity: `vts/devices/{deviceId}/identity`
-- Firmware command subscribe: `vts/devices/{deviceId}/commands`
-- Firmware ACK publish: `vts/devices/{deviceId}/ack`
+- Firmware identity: `vts/devices/{imei}/identity`
+- Firmware command subscribe: `vts/devices/{imei}/commands`
+- Firmware ACK publish: `vts/devices/{imei}/ack`
 
 ## Payload format
 Example payload accepted by `TelemetryHandler`:
@@ -97,18 +97,18 @@ Environment overrides:
 
 ## Two-way firmware testing
 
-The current backend can publish interval commands through `POST /devices/:deviceId/interval` and waits for a matching ACK. Manual MQTT publish is still useful for isolating firmware or broker behavior.
+The current backend can publish interval commands through `POST /devices/:imei/interval` and waits for a matching ACK. Manual MQTT publish is still useful for isolating firmware or broker behavior.
 
 Subscribe to ACKs:
 
 ```bash
-mosquitto_sub -h localhost -p 1883 -t "vts/devices/VTU_001/ack" -v
+mosquitto_sub -h localhost -p 1883 -t "vts/devices/867451234567890/ack" -v
 ```
 
 Send a config update:
 
 ```bash
-mosquitto_pub -h localhost -p 1883 -t "vts/devices/VTU_001/commands" -m '{
+mosquitto_pub -h localhost -p 1883 -t "vts/devices/867451234567890/commands" -m '{
   "type":"config_update",
   "interval":10000
 }'
@@ -118,5 +118,5 @@ Expected result:
 
 - firmware logs the incoming `+QMTRECV`
 - firmware prints `Telemetry interval updated to 10000 ms`
-- firmware publishes `{"type":"ack","status":"success","interval":10000}` to `vts/devices/VTU_001/ack`
+- firmware publishes `{"type":"ack","status":"success","interval":10000}` to `vts/devices/867451234567890/ack`
 - next telemetry publishes follow the new interval

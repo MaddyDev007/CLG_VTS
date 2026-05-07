@@ -14,8 +14,8 @@ export class DeviceAckService {
   private readonly waitTimeoutMs = 10_000
 
   handleAck(topic: string, payload: string) {
-    const deviceId = this.getDeviceIdFromTopic(topic)
-    if (!deviceId) {
+    const imei = this.getImeiFromTopic(topic)
+    if (!imei) {
       this.logger.warn(`Ignoring ACK on unexpected topic: ${topic}`)
       return
     }
@@ -24,14 +24,14 @@ export class DeviceAckService {
     try {
       parsed = JSON.parse(payload) as { status?: unknown; interval?: unknown }
     } catch {
-      this.logger.warn(`Ignoring malformed ACK payload for ${deviceId}: ${payload}`)
+      this.logger.warn(`Ignoring malformed ACK payload for ${imei}: ${payload}`)
       return
     }
 
     const status = typeof parsed.status === 'string' ? parsed.status : 'unknown'
     const interval = typeof parsed.interval === 'number' ? parsed.interval : Number(parsed.interval)
     if (!Number.isFinite(interval)) {
-      this.logger.warn(`Ignoring ACK with invalid interval for ${deviceId}: ${payload}`)
+      this.logger.warn(`Ignoring ACK with invalid interval for ${imei}: ${payload}`)
       return
     }
 
@@ -41,15 +41,15 @@ export class DeviceAckService {
       timestamp: Date.now(),
     }
 
-    this.ackMap.set(deviceId, ack)
-    this.logger.log(`ACK stored for ${deviceId}: status=${ack.status} interval=${ack.interval}`)
+    this.ackMap.set(imei, ack)
+    this.logger.log(`ACK stored for ${imei}: status=${ack.status} interval=${ack.interval}`)
   }
 
-  async waitForAck(deviceId: string, interval: number, sentAt: number): Promise<DeviceAckRecord | null> {
+  async waitForAck(imei: string, interval: number, sentAt: number): Promise<DeviceAckRecord | null> {
     const timeoutAt = Date.now() + this.waitTimeoutMs
 
     while (Date.now() <= timeoutAt) {
-      const ack = this.ackMap.get(deviceId)
+      const ack = this.ackMap.get(imei)
       if (ack && ack.timestamp >= sentAt && ack.interval === interval) {
         return ack
       }
@@ -60,7 +60,7 @@ export class DeviceAckService {
     return null
   }
 
-  private getDeviceIdFromTopic(topic: string): string | null {
+  private getImeiFromTopic(topic: string): string | null {
     const parts = topic.split('/')
     if (parts.length === 4 && parts[0] === 'vts' && parts[1] === 'devices' && parts[3] === 'ack') {
       return parts[2]

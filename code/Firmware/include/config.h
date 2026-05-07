@@ -42,15 +42,10 @@
 #define MQTT_PASSWORD ""
 #endif
 
-#ifndef DEVICE_ID
-#define DEVICE_ID "TEC_DEV_001"
-#endif
-// DEVICE_ID must match the backend device record used for command/ACK flow.
-
 #ifndef DEVICE_IMEI
 #define DEVICE_IMEI ""
 #endif
-// Optional fallback for telemetry imei_no when the modem does not return AT+CGSN.
+// Optional fallback for MQTT topics and payload imei_no when the modem does not return AT+CGSN.
 
 #ifndef GNSS_FIX_TIMEOUT_MS
 #define GNSS_FIX_TIMEOUT_MS 15000

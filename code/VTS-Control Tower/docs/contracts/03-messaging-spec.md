@@ -19,9 +19,9 @@ Current backend subscription:
 Recommended topic layout:
 
 - telemetry publish: `vts/devices/{imei}/telemetry` for the current backend lookup path
-- identity publish: `vts/devices/{deviceId}/identity`
-- command downlink: `vts/devices/{deviceId}/commands`
-- command ack: `vts/devices/{deviceId}/ack`
+- identity publish: `vts/devices/{imei}/identity`
+- command downlink: `vts/devices/{imei}/commands`
+- command ack: `vts/devices/{imei}/ack`
 
 ## Device -> Server Telemetry Message
 
@@ -84,7 +84,7 @@ Required canonical identity message:
 ```json
 {
   "type": "identity",
-  "deviceId": "string",
+  "imei_no": "string",
   "imsi": "string",
   "firmwareVersion": "string"
 }
@@ -114,7 +114,7 @@ Current implemented contract for firmware interval updates:
 
 Rules:
 
-- publish to `vts/devices/{deviceId}/commands`
+- publish to `vts/devices/{imei}/commands`
 - `interval` is in milliseconds
 - firmware accepts values from `1000` to `60000`
 - malformed or unsupported payloads must be ignored safely
@@ -132,7 +132,7 @@ Current ACK contract:
 
 ACK rules:
 
-- firmware publishes ACK to `vts/devices/{deviceId}/ack`
+- firmware publishes ACK to `vts/devices/{imei}/ack`
 - ACK is emitted only after a valid config update is applied
 - ACK uses the same MQTT broker instance as telemetry and identity
 

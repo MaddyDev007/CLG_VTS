@@ -54,6 +54,18 @@ export class DevicesService {
     return this.deviceRepo.findOne({ where: { imei: trimmed } })
   }
 
+  async findByImei(imei: string, actor?: AuthenticatedUser): Promise<Device> {
+    const trimmed = imei.trim()
+    const device = await this.deviceRepo.findOne({
+      where: actor ? mergeCollegeWhere<Device>(actor, { imei: trimmed }) : { imei: trimmed },
+    })
+    if (!device) {
+      throw new NotFoundException('Device not found')
+    }
+
+    return device
+  }
+
   private async findByIdForWrite(id: string, actor: AuthenticatedUser): Promise<Device> {
     const device = await this.deviceRepo.findOne({ where: { id } })
     if (!device) {

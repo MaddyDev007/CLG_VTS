@@ -22,7 +22,7 @@ const MIN_INTERVAL_MS = 1000
 const MAX_INTERVAL_MS = 60000
 
 export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }: EditDeviceModalProps) {
-  const [deviceId, setDeviceId] = useState('')
+  const [deviceName, setDeviceName] = useState('')
   const [imei, setImei] = useState('')
   const [telemetryIntervalMs, setTelemetryIntervalMs] = useState('5000')
   const [error, setError] = useState('')
@@ -34,7 +34,7 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }:
       return
     }
 
-    setDeviceId(device.deviceId)
+    setDeviceName(device.deviceId)
     setImei(device.imei)
     setTelemetryIntervalMs(String(device.telemetryIntervalMs ?? 5000))
     setError('')
@@ -51,8 +51,8 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }:
     setError('')
     const currentInterval = device.telemetryIntervalMs ?? 5000
 
-    if (!DEVICE_ID_REGEX.test(deviceId.trim())) {
-      setError('Device ID must be 3-32 chars (A-Z, 0-9, underscore)')
+    if (!DEVICE_ID_REGEX.test(deviceName.trim())) {
+      setError('Device name must be 3-32 chars (A-Z, 0-9, underscore)')
       return
     }
 
@@ -67,7 +67,7 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }:
       return
     }
 
-    const metadataChanged = deviceId.trim() !== device.deviceId || imei.trim() !== device.imei
+    const metadataChanged = deviceName.trim() !== device.deviceId || imei.trim() !== device.imei
     const intervalChanged = parsedInterval !== currentInterval
 
     if (!metadataChanged && !intervalChanged) {
@@ -78,32 +78,33 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }:
     setIsSubmitting(true)
 
     try {
+      let commandImei = device.imei
+
+      if (metadataChanged) {
+        setSubmitPhase('saving')
+        try {
+          const response = await deviceService.updateDevice(device.id, {
+            deviceId: deviceName.trim(),
+            imei: imei.trim(),
+          })
+          commandImei = response.device.imei
+        } catch {
+          await onSuccess()
+          const message = 'Failed to update device'
+          setError(message)
+          onToast({ type: 'error', message })
+          return
+        }
+      }
+
       if (intervalChanged) {
         setSubmitPhase('waiting-ack')
-        const intervalResponse = await deviceService.updateTelemetryInterval(device.deviceId, parsedInterval)
+        const intervalResponse = await deviceService.updateTelemetryInterval(commandImei, parsedInterval)
 
         if (intervalResponse.status === 'timeout') {
           const message = 'Device not responding (timeout)'
           setError(message)
           onToast({ type: 'warning', message })
-          return
-        }
-      }
-
-      if (metadataChanged) {
-        setSubmitPhase('saving')
-        try {
-          await deviceService.updateDevice(device.id, {
-            deviceId: deviceId.trim(),
-            imei: imei.trim(),
-          })
-        } catch {
-          await onSuccess()
-          const message = intervalChanged
-            ? 'Interval updated on device, but saving device details failed'
-            : 'Failed to update device'
-          setError(message)
-          onToast({ type: 'error', message })
           return
         }
       }
@@ -141,10 +142,10 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }:
 
         <form className='space-y-3' onSubmit={handleSubmit}>
           <div>
-            <label className='mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200'>Device ID</label>
+            <label className='mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200'>Device Name</label>
             <input
-              value={deviceId}
-              onChange={(event) => setDeviceId(event.target.value.toUpperCase())}
+              value={deviceName}
+              onChange={(event) => setDeviceName(event.target.value.toUpperCase())}
               className='w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-600 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
             />
           </div>
