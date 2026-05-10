@@ -37,6 +37,8 @@ const unsigned long mqtt_connect_timeout_ms = 5000;
 const unsigned long mqtt_publish_prompt_timeout_ms = 3000;
 const unsigned long mqtt_publish_ack_timeout_ms = 5000;
 const unsigned long modem_idle_window_ms = 200;
+const unsigned long gps_location_timeout_ms = 3000;
+const int gps_restart_after_failures = 5;
 
 // ----------------------
 // Types
@@ -69,6 +71,7 @@ QueuedMessage telemetryQueue[telemetry_queue_capacity];
 int queueHead = 0;
 int queueCount = 0;
 unsigned long lastTelemetryPollAtMs = 0;
+int consecutiveGpsFailures = 0;
 String cachedDeviceImei = "";
 unsigned long ignitionOnPollIntervalMs = 5000;
 unsigned long ignitionOffPollIntervalMs = 10000;
@@ -89,6 +92,7 @@ String readATResponseUntil(const String& cmd, const String& pattern, unsigned lo
 void sendAT(const String& cmd, unsigned long waitTime = 2000);
 bool setupLTE();
 bool connectMQTT();
+void closeMqttSession();
 bool ensureMqttConnected();
 bool publishMessage(const String& topic, const String& msg);
 bool publishRawMessage(const String& topic, const String& msg);
@@ -107,6 +111,8 @@ bool responseContainsNetworkRegistration(const String& response);
 bool responseContainsGprsAttached(const String& response);
 bool responseContainsPdpActivation(const String& response);
 bool responseContainsActivePdpContext(const String& response);
+bool responseContainsMqttOpenSuccess(const String& response);
+bool responseContainsMqttClientOccupied(const String& response);
 bool validateApnConfig();
 bool hasMqttCredentials();
 bool validateMqttBrokerConfig();
@@ -114,6 +120,8 @@ void logBootConfiguration();
 void loadIntervalsFromNvs();
 bool saveIntervalsToNvs(unsigned long ignitionOnIntervalMs, unsigned long ignitionOffIntervalMs);
 bool isValidTelemetryInterval(unsigned long intervalMs);
+bool startGps();
+void handleGpsPollFailure(const String& gpsResponse);
 void sendStartupSMS();
 bool parseGPS(const String& raw, TelemetrySample& sample);
 float parseLatLon(String s);
@@ -166,12 +174,15 @@ void setup() {
     Serial.println("LTE setup incomplete; telemetry will retry on next loop");
   }
 
+  if (!startGps()) {
+    Serial.println("GNSS start command did not confirm; telemetry will keep retrying");
+  }
+
   if (!connectMQTT()) {
     Serial.println("Initial MQTT connection failed; publish path will retry with backoff");
   }
 
   sendStartupSMS();
-  sendAT("AT+QGPS=1", 2000);
 }
 
 // ----------------------
@@ -196,12 +207,13 @@ void loop() {
 
   lastTelemetryPollAtMs = now;
   sim.println("AT+QGPSLOC?");
-  String gpsResponse = readModemUntilQuiet(1200, 100);
+  String gpsResponse = readModemUntilQuiet(gps_location_timeout_ms, 150);
   if (gpsResponse.length() > 0) {
     processIncomingMqttMessages(gpsResponse);
   }
 
   String line = "";
+  bool foundGpsSample = false;
   for (int i = 0; i < gpsResponse.length(); i++) {
     char c = gpsResponse.charAt(i);
     if (c == '\r') {
@@ -211,6 +223,7 @@ void loop() {
     if (c == '\n') {
       line.trim();
       if (line.startsWith("+QGPSLOC:")) {
+        foundGpsSample = true;
         TelemetrySample sample;
         if (!parseGPS(line, sample)) {
           Serial.println("Failed to parse GPS sample");
@@ -231,6 +244,7 @@ void loop() {
         if (!publishMessage(topic, json)) {
           Serial.println("Telemetry publish failed; payload queued for retry");
         }
+        consecutiveGpsFailures = 0;
       }
       line = "";
       continue;
@@ -241,6 +255,7 @@ void loop() {
 
   line.trim();
   if (line.startsWith("+QGPSLOC:")) {
+    foundGpsSample = true;
     TelemetrySample sample;
     if (!parseGPS(line, sample)) {
       Serial.println("Failed to parse GPS sample");
@@ -260,6 +275,11 @@ void loop() {
     if (!publishMessage(topic, json)) {
       Serial.println("Telemetry publish failed; payload queued for retry");
     }
+    consecutiveGpsFailures = 0;
+  }
+
+  if (!foundGpsSample) {
+    handleGpsPollFailure(gpsResponse);
   }
 }
 
@@ -385,6 +405,14 @@ bool responseContainsActivePdpContext(const String& response) {
   return !responseContainsFailure(response) && response.indexOf("+QIACT:") >= 0;
 }
 
+bool responseContainsMqttOpenSuccess(const String& response) {
+  return responseContainsSuccess(response, "+QMTOPEN: 0,0");
+}
+
+bool responseContainsMqttClientOccupied(const String& response) {
+  return !responseContainsFailure(response) && response.indexOf("+QMTOPEN: 0,2") >= 0;
+}
+
 bool validateApnConfig() {
   String configuredApn = String(apn);
   configuredApn.trim();
@@ -487,6 +515,40 @@ bool saveIntervalsToNvs(unsigned long ignitionOnIntervalMs, unsigned long igniti
 
 bool isValidTelemetryInterval(unsigned long intervalMs) {
   return intervalMs >= minTelemetryIntervalMs && intervalMs <= maxTelemetryIntervalMs;
+}
+
+bool startGps() {
+  String response = readATResponse("AT+QGPS=1", 3000);
+  logModemResponse("AT+QGPS=1 response", response);
+
+  if (responseContainsSuccess(response, "OK")) {
+    return true;
+  }
+
+  if (response.indexOf("+CME ERROR") >= 0) {
+    Serial.println("GNSS may already be running or temporarily busy; QGPSLOC will confirm on poll");
+  }
+
+  return false;
+}
+
+void handleGpsPollFailure(const String& gpsResponse) {
+  consecutiveGpsFailures++;
+
+  Serial.println("No GPS telemetry sample from AT+QGPSLOC? attempt " + String(consecutiveGpsFailures));
+  if (gpsResponse.length() > 0) {
+    logModemResponse("AT+QGPSLOC? response", gpsResponse);
+  } else {
+    Serial.println("AT+QGPSLOC? response: no response from modem");
+  }
+
+  if (consecutiveGpsFailures >= gps_restart_after_failures) {
+    Serial.println("Restarting GNSS after repeated missing GPS samples");
+    sendAT("AT+QGPSEND", 2000);
+    delay(500);
+    startGps();
+    consecutiveGpsFailures = 0;
+  }
 }
 
 bool setupLTE() {
@@ -620,16 +682,23 @@ bool connectMQTT() {
   Serial.println("Telemetry Topic: " + buildTelemetryTopic());
   Serial.println("Identity Topic: " + buildIdentityTopic());
 
-  String openResponse = readATResponseUntil(
-    "AT+QMTOPEN=0,\"" + String(mqtt_broker) + "\"," + String(mqtt_port),
-    "+QMTOPEN:",
-    mqtt_open_timeout_ms
-  );
+  closeMqttSession();
+
+  String openCommand = "AT+QMTOPEN=0,\"" + String(mqtt_broker) + "\"," + String(mqtt_port);
+  String openResponse = readATResponseUntil(openCommand, "+QMTOPEN:", mqtt_open_timeout_ms);
   logModemResponse("AT+QMTOPEN response", openResponse);
-  bool openSucceeded = responseContainsSuccess(openResponse, "+QMTOPEN: 0,0") ||
-                       responseContainsSuccess(openResponse, "+QMTOPEN: 0,2");
+  if (responseContainsMqttClientOccupied(openResponse)) {
+    Serial.println("MQTT client index is occupied; closing stale MQTT session and retrying open");
+    closeMqttSession();
+    delay(1000);
+    openResponse = readATResponseUntil(openCommand, "+QMTOPEN:", mqtt_open_timeout_ms);
+    logModemResponse("AT+QMTOPEN retry response", openResponse);
+  }
+
+  bool openSucceeded = responseContainsMqttOpenSuccess(openResponse);
   if (!openSucceeded) {
     logModemResponse("MQTT open failed", openResponse);
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -643,6 +712,7 @@ bool connectMQTT() {
   logModemResponse("AT+QMTCONN response", connectResponse);
   if (!responseContainsSuccess(connectResponse, "+QMTCONN: 0,0,0")) {
     logModemResponse("MQTT connect failed", connectResponse);
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -655,6 +725,7 @@ bool connectMQTT() {
   logModemResponse("AT+QMTSUB response", subscribeResponse);
   if (!responseContainsSuccess(subscribeResponse, "+QMTSUB: 0,1,0")) {
     Serial.println("MQTT subscribe failed for command topic: " + buildCommandTopic());
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -663,11 +734,26 @@ bool connectMQTT() {
 
   if (!publishRawMessage(buildIdentityTopic(), buildIdentityJson())) {
     Serial.println("Identity publish failed after MQTT connect");
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
 
   return true;
+}
+
+void closeMqttSession() {
+  String disconnectResponse = readATResponseUntil("AT+QMTDISC=0", "+QMTDISC:", 3000);
+  if (disconnectResponse.length() > 0 && disconnectResponse.indexOf("ERROR") < 0) {
+    logModemResponse("AT+QMTDISC cleanup response", disconnectResponse);
+  }
+
+  String closeResponse = readATResponseUntil("AT+QMTCLOSE=0", "+QMTCLOSE:", 5000);
+  if (closeResponse.length() > 0 && closeResponse.indexOf("ERROR") < 0) {
+    logModemResponse("AT+QMTCLOSE cleanup response", closeResponse);
+  }
+
+  mqttConnected = false;
 }
 
 bool ensureMqttConnected() {
@@ -697,6 +783,7 @@ bool publishRawMessage(const String& topic, const String& msg) {
   String promptResponse = readModemUntilQuiet(mqtt_publish_prompt_timeout_ms, 100);
   if (promptResponse.indexOf('>') < 0) {
     logModemResponse("MQTT publish prompt failed", promptResponse);
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -707,6 +794,7 @@ bool publishRawMessage(const String& topic, const String& msg) {
   String publishResponse = readModemUntilPattern("+QMTPUB:", mqtt_publish_ack_timeout_ms);
   if (!responseContainsSuccess(publishResponse, "+QMTPUB: 0,0,0")) {
     logModemResponse("MQTT publish ack failed", publishResponse);
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -716,6 +804,12 @@ bool publishRawMessage(const String& topic, const String& msg) {
 }
 
 void processIncomingMqttMessages(const String& modemOutput) {
+  if (modemOutput.indexOf("+QMTSTAT:") >= 0) {
+    Serial.println("MQTT status notification from modem:");
+    Serial.println(modemOutput);
+    mqttConnected = false;
+  }
+
   if (modemOutput.indexOf("+QMTRECV:") < 0) {
     return;
   }
