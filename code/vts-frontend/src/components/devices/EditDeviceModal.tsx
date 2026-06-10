@@ -24,7 +24,8 @@ const MAX_INTERVAL_MS = 60000
 export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }: EditDeviceModalProps) {
   const [deviceName, setDeviceName] = useState('')
   const [imei, setImei] = useState('')
-  const [telemetryIntervalMs, setTelemetryIntervalMs] = useState('5000')
+  const [ignitionOnIntervalMs, setIgnitionOnIntervalMs] = useState('5000')
+  const [ignitionOffIntervalMs, setIgnitionOffIntervalMs] = useState('10000')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitPhase, setSubmitPhase] = useState<'idle' | 'saving' | 'waiting-ack'>('idle')
@@ -36,7 +37,8 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }:
 
     setDeviceName(device.deviceId)
     setImei(device.imei)
-    setTelemetryIntervalMs(String(device.telemetryIntervalMs ?? 5000))
+    setIgnitionOnIntervalMs(String(device.ignitionOnIntervalMs ?? device.telemetryIntervalMs ?? 5000))
+    setIgnitionOffIntervalMs(String(device.ignitionOffIntervalMs ?? device.telemetryIntervalMs ?? 10000))
     setError('')
     setIsSubmitting(false)
     setSubmitPhase('idle')
@@ -49,7 +51,8 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }:
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError('')
-    const currentInterval = device.telemetryIntervalMs ?? 5000
+    const currentIgnitionOnInterval = device.ignitionOnIntervalMs ?? device.telemetryIntervalMs ?? 5000
+    const currentIgnitionOffInterval = device.ignitionOffIntervalMs ?? device.telemetryIntervalMs ?? 10000
 
     if (!DEVICE_ID_REGEX.test(deviceName.trim())) {
       setError('Device name must be 3-32 chars (A-Z, 0-9, underscore)')
@@ -61,14 +64,20 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }:
       return
     }
 
-    const parsedInterval = Number(telemetryIntervalMs)
-    if (!Number.isInteger(parsedInterval) || parsedInterval < MIN_INTERVAL_MS || parsedInterval > MAX_INTERVAL_MS) {
-      setError(`Telemetry interval must be between ${MIN_INTERVAL_MS} and ${MAX_INTERVAL_MS} ms`)
+    const parsedIgnitionOnInterval = Number(ignitionOnIntervalMs)
+    const parsedIgnitionOffInterval = Number(ignitionOffIntervalMs)
+    const intervalsAreValid = [parsedIgnitionOnInterval, parsedIgnitionOffInterval].every(
+      (interval) => Number.isInteger(interval) && interval >= MIN_INTERVAL_MS && interval <= MAX_INTERVAL_MS,
+    )
+    if (!intervalsAreValid) {
+      setError(`Both telemetry intervals must be between ${MIN_INTERVAL_MS} and ${MAX_INTERVAL_MS} ms`)
       return
     }
 
     const metadataChanged = deviceName.trim() !== device.deviceId || imei.trim() !== device.imei
-    const intervalChanged = parsedInterval !== currentInterval
+    const intervalChanged =
+      parsedIgnitionOnInterval !== currentIgnitionOnInterval ||
+      parsedIgnitionOffInterval !== currentIgnitionOffInterval
 
     if (!metadataChanged && !intervalChanged) {
       onClose()
@@ -99,7 +108,10 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }:
 
       if (intervalChanged) {
         setSubmitPhase('waiting-ack')
-        const intervalResponse = await deviceService.updateTelemetryInterval(commandImei, parsedInterval)
+        const intervalResponse = await deviceService.updateTelemetryIntervals(commandImei, {
+          ignitionOnInterval: parsedIgnitionOnInterval,
+          ignitionOffInterval: parsedIgnitionOffInterval,
+        })
 
         if (intervalResponse.status === 'timeout') {
           const message = 'Device not responding (timeout)'
@@ -162,15 +174,30 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }:
 
           <div>
             <label className='mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200'>
-              Telemetry Interval (ms)
+              Ignition ON Interval (ms)
             </label>
             <input
               type='number'
               min={MIN_INTERVAL_MS}
               max={MAX_INTERVAL_MS}
               step={1000}
-              value={telemetryIntervalMs}
-              onChange={(event) => setTelemetryIntervalMs(event.target.value)}
+              value={ignitionOnIntervalMs}
+              onChange={(event) => setIgnitionOnIntervalMs(event.target.value)}
+              className='w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-600 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200'>
+              Ignition OFF Interval (ms)
+            </label>
+            <input
+              type='number'
+              min={MIN_INTERVAL_MS}
+              max={MAX_INTERVAL_MS}
+              step={1000}
+              value={ignitionOffIntervalMs}
+              onChange={(event) => setIgnitionOffIntervalMs(event.target.value)}
               className='w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-600 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
             />
             <p className='mt-1 text-xs text-slate-500 dark:text-slate-400'>

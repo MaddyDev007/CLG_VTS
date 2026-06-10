@@ -1,4 +1,5 @@
 #include <HardwareSerial.h>
+#include <Preferences.h>
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -18,14 +19,13 @@ const char* mqtt_client_prefix = "ESP32_LTE_GPS_Client_";
 const char* firmware_version = "0.2.0";
 
 const char* configured_device_imei = DEVICE_IMEI;
-const char* notify_number = "+917094332015"; // replace with your number
+const char* notify_number = "+918248034240"; // replace with your number
 
 const int sim_rx_pin = EC25_RX;
 const int sim_tx_pin = EC25_TX;
 const int ignition_input_pin = IGNITION_PIN;
 const bool ignition_fallback_state = true; // TODO: replace with real ignition input before production deployment.
 
-unsigned long gps_poll_interval_ms = 5000;
 const uint64_t fallback_epoch_base_ms = 1700000000000ULL;
 const int default_battery_mv = 3900;
 const int default_signal_dbm = -70;
@@ -37,6 +37,15 @@ const unsigned long mqtt_connect_timeout_ms = 5000;
 const unsigned long mqtt_publish_prompt_timeout_ms = 3000;
 const unsigned long mqtt_publish_ack_timeout_ms = 5000;
 const unsigned long modem_idle_window_ms = 200;
+const unsigned long gps_location_timeout_ms = 3000;
+const int gps_restart_after_failures = 5;
+const unsigned long modem_ready_timeout_ms = 30000;
+const unsigned long sim_ready_timeout_ms = 30000;
+const unsigned long network_registration_timeout_ms = 90000;
+const unsigned long gprs_attach_timeout_ms = 60000;
+const unsigned long connectivity_maintenance_interval_ms = 15000;
+const unsigned long mqtt_reconnect_interval_ms = 30000;
+const unsigned long startup_sms_retry_interval_ms = 60000;
 
 // ----------------------
 // Types
@@ -61,24 +70,42 @@ struct QueuedMessage {
 // ----------------------
 // State
 // ----------------------
+Preferences preferences;
 int lastKnownSignalDbm = default_signal_dbm;
 int lastKnownBatteryMv = default_battery_mv;
 bool mqttConnected = false;
+bool lteReady = false;
+bool startupSmsSent = false;
 QueuedMessage telemetryQueue[telemetry_queue_capacity];
 int queueHead = 0;
 int queueCount = 0;
 unsigned long lastTelemetryPollAtMs = 0;
+unsigned long lastConnectivityMaintenanceAtMs = 0;
+unsigned long nextMqttReconnectAtMs = 0;
+unsigned long nextStartupSmsAtMs = 0;
+int consecutiveGpsFailures = 0;
 String cachedDeviceImei = "";
+unsigned long ignitionOnPollIntervalMs = 5000;
+unsigned long ignitionOffPollIntervalMs = 10000;
+const unsigned long minTelemetryIntervalMs = 1000;
+const unsigned long maxTelemetryIntervalMs = 60000;
+const char* nvs_namespace = "vts_cfg";
+const char* nvs_ignition_on_interval_key = "onInterval";
+const char* nvs_ignition_off_interval_key = "offInterval";
 
 // ----------------------
 // Function prototypes
 // ----------------------
 void clearModemInput();
 String readModemUntilQuiet(unsigned long timeoutMs, unsigned long idleWindowMs = modem_idle_window_ms);
+String readModemUntilPattern(const String& pattern, unsigned long timeoutMs);
 String readATResponse(const String& cmd, unsigned long waitTime = 2000);
+String readATResponseUntil(const String& cmd, const String& pattern, unsigned long waitTime);
 void sendAT(const String& cmd, unsigned long waitTime = 2000);
 bool setupLTE();
 bool connectMQTT();
+void closeMqttSession();
+void maintainConnectivity();
 bool ensureMqttConnected();
 bool publishMessage(const String& topic, const String& msg);
 bool publishRawMessage(const String& topic, const String& msg);
@@ -97,11 +124,22 @@ bool responseContainsNetworkRegistration(const String& response);
 bool responseContainsGprsAttached(const String& response);
 bool responseContainsPdpActivation(const String& response);
 bool responseContainsActivePdpContext(const String& response);
+bool responseContainsMqttOpenSuccess(const String& response);
+bool responseContainsMqttClientOccupied(const String& response);
+bool waitForModemReady(unsigned long timeoutMs);
+bool waitForSimReady(unsigned long timeoutMs);
+bool waitForNetworkRegistration(unsigned long timeoutMs);
+bool waitForGprsAttach(unsigned long timeoutMs);
 bool validateApnConfig();
 bool hasMqttCredentials();
 bool validateMqttBrokerConfig();
 void logBootConfiguration();
-void sendStartupSMS();
+void loadIntervalsFromNvs();
+bool saveIntervalsToNvs(unsigned long ignitionOnIntervalMs, unsigned long ignitionOffIntervalMs);
+bool isValidTelemetryInterval(unsigned long intervalMs);
+bool startGps();
+void handleGpsPollFailure(const String& gpsResponse);
+bool sendStartupSMS();
 bool parseGPS(const String& raw, TelemetrySample& sample);
 float parseLatLon(String s);
 String buildTelemetryTopic();
@@ -112,7 +150,7 @@ String buildMqttClientId();
 String getDeviceImei();
 String buildTelemetryJson(const TelemetrySample& sample);
 String buildIdentityJson();
-String buildAckJson(unsigned long intervalMs);
+String buildAckJson(unsigned long ignitionOnIntervalMs, unsigned long ignitionOffIntervalMs);
 String readImei();
 String readImsi();
 String uint64ToString(uint64_t value);
@@ -138,6 +176,7 @@ void setup() {
   sim.begin(UART_BAUD, SERIAL_8N1, sim_rx_pin, sim_tx_pin);
   delay(3000);
 
+  loadIntervalsFromNvs();
   logBootConfiguration();
 
   if (ignition_input_pin >= 0) {
@@ -148,16 +187,16 @@ void setup() {
 
   Serial.println("Initializing LTE + GPS...");
 
-  if (!setupLTE()) {
-    Serial.println("LTE setup incomplete; telemetry will retry on next loop");
+  if (!startGps()) {
+    Serial.println("GNSS start command did not confirm; telemetry will keep retrying");
   }
 
-  if (!connectMQTT()) {
-    Serial.println("Initial MQTT connection failed; publish path will retry with backoff");
+  lteReady = setupLTE();
+  if (!lteReady) {
+    Serial.println("LTE setup incomplete; firmware will retry while continuing GPS telemetry collection");
   }
 
-  sendStartupSMS();
-  sendAT("AT+QGPS=1", 2000);
+  maintainConnectivity();
 }
 
 // ----------------------
@@ -169,23 +208,28 @@ void loop() {
     processIncomingMqttMessages(modemOutput);
   }
 
-  if (!queueIsEmpty()) {
+  maintainConnectivity();
+
+  if (mqttConnected && !queueIsEmpty()) {
     flushQueuedMessages();
   }
 
   unsigned long now = millis();
-  if (now - lastTelemetryPollAtMs < gps_poll_interval_ms) {
+  bool currentIgnition = readIgnitionState();
+  unsigned long activePollIntervalMs = currentIgnition ? ignitionOnPollIntervalMs : ignitionOffPollIntervalMs;
+  if (now - lastTelemetryPollAtMs < activePollIntervalMs) {
     return;
   }
 
   lastTelemetryPollAtMs = now;
   sim.println("AT+QGPSLOC?");
-  String gpsResponse = readModemUntilQuiet(1200, 100);
+  String gpsResponse = readModemUntilQuiet(gps_location_timeout_ms, 150);
   if (gpsResponse.length() > 0) {
     processIncomingMqttMessages(gpsResponse);
   }
 
   String line = "";
+  bool foundGpsSample = false;
   for (int i = 0; i < gpsResponse.length(); i++) {
     char c = gpsResponse.charAt(i);
     if (c == '\r') {
@@ -195,6 +239,7 @@ void loop() {
     if (c == '\n') {
       line.trim();
       if (line.startsWith("+QGPSLOC:")) {
+        foundGpsSample = true;
         TelemetrySample sample;
         if (!parseGPS(line, sample)) {
           Serial.println("Failed to parse GPS sample");
@@ -202,7 +247,7 @@ void loop() {
           continue;
         }
 
-        sample.ignition = readIgnitionState();
+        sample.ignition = currentIgnition;
         sample.batteryMv = readBatteryMillivolts();
         sample.signalDbm = readSignalDbm();
 
@@ -215,6 +260,7 @@ void loop() {
         if (!publishMessage(topic, json)) {
           Serial.println("Telemetry publish failed; payload queued for retry");
         }
+        consecutiveGpsFailures = 0;
       }
       line = "";
       continue;
@@ -225,13 +271,14 @@ void loop() {
 
   line.trim();
   if (line.startsWith("+QGPSLOC:")) {
+    foundGpsSample = true;
     TelemetrySample sample;
     if (!parseGPS(line, sample)) {
       Serial.println("Failed to parse GPS sample");
       return;
     }
 
-    sample.ignition = readIgnitionState();
+    sample.ignition = currentIgnition;
     sample.batteryMv = readBatteryMillivolts();
     sample.signalDbm = readSignalDbm();
 
@@ -244,6 +291,11 @@ void loop() {
     if (!publishMessage(topic, json)) {
       Serial.println("Telemetry publish failed; payload queued for retry");
     }
+    consecutiveGpsFailures = 0;
+  }
+
+  if (!foundGpsSample) {
+    handleGpsPollFailure(gpsResponse);
   }
 }
 
@@ -279,10 +331,48 @@ String readModemUntilQuiet(unsigned long timeoutMs, unsigned long idleWindowMs) 
   return response;
 }
 
+String readModemUntilPattern(const String& pattern, unsigned long timeoutMs) {
+  unsigned long start = millis();
+  String response = "";
+
+  while (millis() - start < timeoutMs) {
+    while (sim.available()) {
+      response += static_cast<char>(sim.read());
+    }
+
+    if (pattern.length() > 0 && response.indexOf(pattern) >= 0) {
+      break;
+    }
+
+    if (responseContainsFailure(response)) {
+      break;
+    }
+
+    delay(10);
+  }
+
+  unsigned long quietStart = millis();
+  while (millis() - quietStart < modem_idle_window_ms) {
+    while (sim.available()) {
+      response += static_cast<char>(sim.read());
+      quietStart = millis();
+    }
+    delay(10);
+  }
+
+  return response;
+}
+
 String readATResponse(const String& cmd, unsigned long waitTime) {
   clearModemInput();
   sim.println(cmd);
   return readModemUntilQuiet(waitTime);
+}
+
+String readATResponseUntil(const String& cmd, const String& pattern, unsigned long waitTime) {
+  clearModemInput();
+  sim.println(cmd);
+  return readModemUntilPattern(pattern, waitTime);
 }
 
 void sendAT(const String& cmd, unsigned long waitTime) {
@@ -329,6 +419,82 @@ bool responseContainsPdpActivation(const String& response) {
 
 bool responseContainsActivePdpContext(const String& response) {
   return !responseContainsFailure(response) && response.indexOf("+QIACT:") >= 0;
+}
+
+bool responseContainsMqttOpenSuccess(const String& response) {
+  return responseContainsSuccess(response, "+QMTOPEN: 0,0");
+}
+
+bool responseContainsMqttClientOccupied(const String& response) {
+  return !responseContainsFailure(response) && response.indexOf("+QMTOPEN: 0,2") >= 0;
+}
+
+bool waitForModemReady(unsigned long timeoutMs) {
+  unsigned long start = millis();
+  int attempt = 1;
+
+  while (millis() - start < timeoutMs) {
+    String response = readATResponse("AT", 1000);
+    if (responseContainsSuccess(response, "OK")) {
+      return true;
+    }
+
+    Serial.println("Waiting for modem AT response, attempt " + String(attempt));
+    attempt++;
+    delay(1000);
+  }
+
+  return false;
+}
+
+bool waitForSimReady(unsigned long timeoutMs) {
+  unsigned long start = millis();
+
+  while (millis() - start < timeoutMs) {
+    String response = readATResponse("AT+CPIN?", 2000);
+    logModemResponse("AT+CPIN? response", response);
+    if (response.indexOf("+CPIN: READY") >= 0 && !responseContainsFailure(response)) {
+      return true;
+    }
+
+    delay(2000);
+  }
+
+  return false;
+}
+
+bool waitForNetworkRegistration(unsigned long timeoutMs) {
+  unsigned long start = millis();
+
+  while (millis() - start < timeoutMs) {
+    String response = readATResponse("AT+CREG?", 2000);
+    logModemResponse("AT+CREG? response", response);
+    if (responseContainsNetworkRegistration(response)) {
+      return true;
+    }
+
+    Serial.println("Waiting for cellular tower registration...");
+    delay(3000);
+  }
+
+  return false;
+}
+
+bool waitForGprsAttach(unsigned long timeoutMs) {
+  unsigned long start = millis();
+
+  while (millis() - start < timeoutMs) {
+    String response = readATResponse("AT+CGATT?", 2000);
+    logModemResponse("AT+CGATT? response", response);
+    if (responseContainsGprsAttached(response)) {
+      return true;
+    }
+
+    Serial.println("Waiting for packet data attach...");
+    delay(3000);
+  }
+
+  return false;
 }
 
 bool validateApnConfig() {
@@ -378,36 +544,122 @@ void logBootConfiguration() {
   Serial.println("  MQTT Client: " + buildMqttClientId());
   Serial.println("  Telemetry Topic: " + buildTelemetryTopic());
   Serial.println("  Identity Topic: " + buildIdentityTopic());
+  Serial.println("  Ignition ON Interval: " + String(ignitionOnPollIntervalMs) + " ms");
+  Serial.println("  Ignition OFF Interval: " + String(ignitionOffPollIntervalMs) + " ms");
   Serial.println("  EC25 RX/TX: " + String(sim_rx_pin) + "/" + String(sim_tx_pin));
   Serial.println("  Ignition Pin: " + String(ignition_input_pin));
+}
+
+void loadIntervalsFromNvs() {
+  if (!preferences.begin(nvs_namespace, false)) {
+    Serial.println("WARNING: Failed to open NVS intervals namespace; using defaults");
+    return;
+  }
+
+  unsigned long savedIgnitionOnInterval = preferences.getULong(
+    nvs_ignition_on_interval_key,
+    ignitionOnPollIntervalMs
+  );
+  unsigned long savedIgnitionOffInterval = preferences.getULong(
+    nvs_ignition_off_interval_key,
+    ignitionOffPollIntervalMs
+  );
+  preferences.end();
+
+  if (isValidTelemetryInterval(savedIgnitionOnInterval)) {
+    ignitionOnPollIntervalMs = savedIgnitionOnInterval;
+  } else {
+    Serial.println("WARNING: Ignoring invalid NVS ignition ON interval: " + String(savedIgnitionOnInterval));
+  }
+
+  if (isValidTelemetryInterval(savedIgnitionOffInterval)) {
+    ignitionOffPollIntervalMs = savedIgnitionOffInterval;
+  } else {
+    Serial.println("WARNING: Ignoring invalid NVS ignition OFF interval: " + String(savedIgnitionOffInterval));
+  }
+}
+
+bool saveIntervalsToNvs(unsigned long ignitionOnIntervalMs, unsigned long ignitionOffIntervalMs) {
+  if (!preferences.begin(nvs_namespace, false)) {
+    Serial.println("ERROR: Failed to open NVS for writing intervals");
+    return false;
+  }
+
+  size_t writtenOn = preferences.putULong(nvs_ignition_on_interval_key, ignitionOnIntervalMs);
+  size_t writtenOff = preferences.putULong(nvs_ignition_off_interval_key, ignitionOffIntervalMs);
+  preferences.end();
+
+  if (writtenOn == 0 || writtenOff == 0) {
+    Serial.println("ERROR: Failed to persist one or more telemetry intervals to NVS");
+    return false;
+  }
+
+  return true;
+}
+
+bool isValidTelemetryInterval(unsigned long intervalMs) {
+  return intervalMs >= minTelemetryIntervalMs && intervalMs <= maxTelemetryIntervalMs;
+}
+
+bool startGps() {
+  String response = readATResponse("AT+QGPS=1", 3000);
+  logModemResponse("AT+QGPS=1 response", response);
+
+  if (responseContainsSuccess(response, "OK")) {
+    return true;
+  }
+
+  if (response.indexOf("+CME ERROR") >= 0) {
+    Serial.println("GNSS may already be running or temporarily busy; QGPSLOC will confirm on poll");
+  }
+
+  return false;
+}
+
+void handleGpsPollFailure(const String& gpsResponse) {
+  consecutiveGpsFailures++;
+
+  Serial.println("No GPS telemetry sample from AT+QGPSLOC? attempt " + String(consecutiveGpsFailures));
+  if (gpsResponse.length() > 0) {
+    logModemResponse("AT+QGPSLOC? response", gpsResponse);
+  } else {
+    Serial.println("AT+QGPSLOC? response: no response from modem");
+  }
+
+  if (consecutiveGpsFailures >= gps_restart_after_failures) {
+    Serial.println("Restarting GNSS after repeated missing GPS samples");
+    sendAT("AT+QGPSEND", 2000);
+    delay(500);
+    startGps();
+    consecutiveGpsFailures = 0;
+  }
 }
 
 bool setupLTE() {
   Serial.println("Setting up LTE...");
 
-  String response = readATResponse("AT");
-  if (!responseContainsSuccess(response, "OK")) {
-    logModemResponse("AT failed", response);
+  if (!waitForModemReady(modem_ready_timeout_ms)) {
+    Serial.println("ERROR: Modem did not respond to AT within startup window.");
     return false;
   }
 
   sendAT("ATE0");
-  sendAT("AT+CPIN?");
 
-  response = readATResponse("AT+CSQ", 2000);
-  logModemResponse("AT+CSQ response", response);
-
-  response = readATResponse("AT+CREG?", 2000);
-  logModemResponse("AT+CREG? response", response);
-  if (!responseContainsNetworkRegistration(response)) {
-    Serial.println("ERROR: Modem is not registered on the network. Expected CREG status 1 or 5.");
+  if (!waitForSimReady(sim_ready_timeout_ms)) {
+    Serial.println("ERROR: SIM is not ready yet.");
     return false;
   }
 
-  response = readATResponse("AT+CGATT?", 2000);
-  logModemResponse("AT+CGATT? response", response);
-  if (!responseContainsGprsAttached(response)) {
-    Serial.println("ERROR: Modem is not GPRS attached. Expected CGATT status 1 before PDP activation.");
+  String response = readATResponse("AT+CSQ", 2000);
+  logModemResponse("AT+CSQ response", response);
+
+  if (!waitForNetworkRegistration(network_registration_timeout_ms)) {
+    Serial.println("ERROR: Modem is not registered on the network yet.");
+    return false;
+  }
+
+  if (!waitForGprsAttach(gprs_attach_timeout_ms)) {
+    Serial.println("ERROR: Modem is not packet-data attached yet.");
     return false;
   }
 
@@ -427,12 +679,21 @@ bool setupLTE() {
   const unsigned long pdpRetryDelayMs[pdpActivationAttempts] = {2000, 3000, 5000};
 
   for (int attempt = 0; attempt < pdpActivationAttempts; attempt++) {
+    String activeContextResponse = readATResponse("AT+QIACT?", 5000);
+    logModemResponse("AT+QIACT? response before activation", activeContextResponse);
+    if (responseContainsActivePdpContext(activeContextResponse)) {
+      Serial.println("LTE Ready");
+      lteReady = true;
+      return true;
+    }
+
     Serial.println("Activating PDP context...");
     response = readATResponse("AT+QIACT=1", pdpActivationTimeoutMs);
     logModemResponse("AT+QIACT response", response);
 
     if (responseContainsPdpActivation(response)) {
       Serial.println("LTE Ready");
+      lteReady = true;
       return true;
     }
 
@@ -448,6 +709,7 @@ bool setupLTE() {
   }
 
   Serial.println("ERROR: PDP activation failed after maximum retries.");
+  lteReady = false;
   return false;
 }
 
@@ -500,7 +762,8 @@ bool connectMQTT() {
   logModemResponse("AT+QIACT? response before MQTT", pdpStatusResponse);
   if (!responseContainsActivePdpContext(pdpStatusResponse)) {
     Serial.println("PDP context is not active. Re-establishing LTE before MQTT...");
-    if (!setupLTE()) {
+    lteReady = setupLTE();
+    if (!lteReady) {
       Serial.println("MQTT skipped because PDP activation is not ready.");
       mqttConnected = false;
       return false;
@@ -513,15 +776,23 @@ bool connectMQTT() {
   Serial.println("Telemetry Topic: " + buildTelemetryTopic());
   Serial.println("Identity Topic: " + buildIdentityTopic());
 
-  String openResponse = readATResponse(
-    "AT+QMTOPEN=0,\"" + String(mqtt_broker) + "\"," + String(mqtt_port),
-    mqtt_open_timeout_ms
-  );
+  closeMqttSession();
+
+  String openCommand = "AT+QMTOPEN=0,\"" + String(mqtt_broker) + "\"," + String(mqtt_port);
+  String openResponse = readATResponseUntil(openCommand, "+QMTOPEN:", mqtt_open_timeout_ms);
   logModemResponse("AT+QMTOPEN response", openResponse);
-  bool openSucceeded = responseContainsSuccess(openResponse, "+QMTOPEN: 0,0") ||
-                       responseContainsSuccess(openResponse, "+QMTOPEN: 0,2");
+  if (responseContainsMqttClientOccupied(openResponse)) {
+    Serial.println("MQTT client index is occupied; closing stale MQTT session and retrying open");
+    closeMqttSession();
+    delay(1000);
+    openResponse = readATResponseUntil(openCommand, "+QMTOPEN:", mqtt_open_timeout_ms);
+    logModemResponse("AT+QMTOPEN retry response", openResponse);
+  }
+
+  bool openSucceeded = responseContainsMqttOpenSuccess(openResponse);
   if (!openSucceeded) {
     logModemResponse("MQTT open failed", openResponse);
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -531,10 +802,11 @@ bool connectMQTT() {
     connectCommand += ",\"" + String(mqtt_username) + "\",\"" + String(mqtt_password) + "\"";
   }
 
-  String connectResponse = readATResponse(connectCommand, mqtt_connect_timeout_ms);
+  String connectResponse = readATResponseUntil(connectCommand, "+QMTCONN:", mqtt_connect_timeout_ms);
   logModemResponse("AT+QMTCONN response", connectResponse);
   if (!responseContainsSuccess(connectResponse, "+QMTCONN: 0,0,0")) {
     logModemResponse("MQTT connect failed", connectResponse);
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -543,10 +815,11 @@ bool connectMQTT() {
   Serial.println("MQTT connected");
 
   String subscribeCommand = "AT+QMTSUB=0,1,\"" + buildCommandTopic() + "\",1";
-  String subscribeResponse = readATResponse(subscribeCommand, mqtt_connect_timeout_ms);
+  String subscribeResponse = readATResponseUntil(subscribeCommand, "+QMTSUB:", mqtt_connect_timeout_ms);
   logModemResponse("AT+QMTSUB response", subscribeResponse);
   if (!responseContainsSuccess(subscribeResponse, "+QMTSUB: 0,1,0")) {
     Serial.println("MQTT subscribe failed for command topic: " + buildCommandTopic());
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -555,6 +828,7 @@ bool connectMQTT() {
 
   if (!publishRawMessage(buildIdentityTopic(), buildIdentityJson())) {
     Serial.println("Identity publish failed after MQTT connect");
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -562,23 +836,67 @@ bool connectMQTT() {
   return true;
 }
 
+void maintainConnectivity() {
+  unsigned long now = millis();
+
+  if (now - lastConnectivityMaintenanceAtMs >= connectivity_maintenance_interval_ms) {
+    lastConnectivityMaintenanceAtMs = now;
+
+    if (!lteReady) {
+      Serial.println("LTE not ready; running background LTE setup");
+      lteReady = setupLTE();
+      if (lteReady) {
+        nextMqttReconnectAtMs = 0;
+      }
+    }
+  }
+
+  if (lteReady && !startupSmsSent && now >= nextStartupSmsAtMs) {
+    startupSmsSent = sendStartupSMS();
+    nextStartupSmsAtMs = now + startup_sms_retry_interval_ms;
+  }
+
+  if (lteReady && !mqttConnected && now >= nextMqttReconnectAtMs) {
+    Serial.println("MQTT not connected; running scheduled reconnect");
+    if (!connectMQTT()) {
+      nextMqttReconnectAtMs = millis() + mqtt_reconnect_interval_ms;
+    } else {
+      nextMqttReconnectAtMs = 0;
+    }
+  }
+}
+
+void closeMqttSession() {
+  String disconnectResponse = readATResponseUntil("AT+QMTDISC=0", "+QMTDISC:", 3000);
+  if (disconnectResponse.length() > 0 && disconnectResponse.indexOf("ERROR") < 0) {
+    logModemResponse("AT+QMTDISC cleanup response", disconnectResponse);
+  }
+
+  String closeResponse = readATResponseUntil("AT+QMTCLOSE=0", "+QMTCLOSE:", 5000);
+  if (closeResponse.length() > 0 && closeResponse.indexOf("ERROR") < 0) {
+    logModemResponse("AT+QMTCLOSE cleanup response", closeResponse);
+  }
+
+  mqttConnected = false;
+}
+
 bool ensureMqttConnected() {
   if (mqttConnected) {
     return true;
   }
 
-  for (int attempt = 0; attempt < mqtt_reconnect_attempts; attempt++) {
-    Serial.println("Attempting MQTT reconnect...");
-    if (connectMQTT()) {
-      return true;
-    }
-
-    if (attempt < mqtt_reconnect_attempts - 1) {
-      delay(mqtt_reconnect_backoff_ms[attempt]);
-    }
+  unsigned long now = millis();
+  if (now < nextMqttReconnectAtMs) {
+    return false;
   }
 
-  Serial.println("MQTT reconnect attempts exhausted");
+  Serial.println("Attempting MQTT reconnect...");
+  if (connectMQTT()) {
+    nextMqttReconnectAtMs = 0;
+    return true;
+  }
+
+  nextMqttReconnectAtMs = millis() + mqtt_reconnect_interval_ms;
   return false;
 }
 
@@ -589,6 +907,7 @@ bool publishRawMessage(const String& topic, const String& msg) {
   String promptResponse = readModemUntilQuiet(mqtt_publish_prompt_timeout_ms, 100);
   if (promptResponse.indexOf('>') < 0) {
     logModemResponse("MQTT publish prompt failed", promptResponse);
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -596,9 +915,10 @@ bool publishRawMessage(const String& topic, const String& msg) {
   sim.print(msg);
   sim.write(0x1A);
 
-  String publishResponse = readModemUntilQuiet(mqtt_publish_ack_timeout_ms);
+  String publishResponse = readModemUntilPattern("+QMTPUB:", mqtt_publish_ack_timeout_ms);
   if (!responseContainsSuccess(publishResponse, "+QMTPUB: 0,0,0")) {
     logModemResponse("MQTT publish ack failed", publishResponse);
+    closeMqttSession();
     mqttConnected = false;
     return false;
   }
@@ -608,6 +928,12 @@ bool publishRawMessage(const String& topic, const String& msg) {
 }
 
 void processIncomingMqttMessages(const String& modemOutput) {
+  if (modemOutput.indexOf("+QMTSTAT:") >= 0) {
+    Serial.println("MQTT status notification from modem:");
+    Serial.println(modemOutput);
+    mqttConnected = false;
+  }
+
   if (modemOutput.indexOf("+QMTRECV:") < 0) {
     return;
   }
@@ -741,16 +1067,32 @@ bool publishMessage(const String& topic, const String& msg) {
 // ----------------------
 // Send startup SMS
 // ----------------------
-void sendStartupSMS() {
+bool sendStartupSMS() {
   Serial.println("Sending startup SMS...");
-  sendAT("AT+CMGF=1");
-  sendAT("AT+CMGS=\"" + String(notify_number) + "\"");
-  delay(500);
+  String modeResponse = readATResponse("AT+CMGF=1", 2000);
+  if (!responseContainsSuccess(modeResponse, "OK")) {
+    logModemResponse("AT+CMGF failed", modeResponse);
+    return false;
+  }
+
+  clearModemInput();
+  sim.println("AT+CMGS=\"" + String(notify_number) + "\"");
+  String promptResponse = readModemUntilQuiet(5000, 100);
+  if (promptResponse.indexOf('>') < 0) {
+    logModemResponse("AT+CMGS prompt failed", promptResponse);
+    return false;
+  }
+
   sim.print("Device IMEI " + getDeviceImei() + " started");
-  delay(500);
   sim.write(0x1A);
-  delay(2000);
+  String sendResponse = readModemUntilPattern("OK", 10000);
+  if (!responseContainsSuccess(sendResponse, "OK") && sendResponse.indexOf("+CMGS:") < 0) {
+    logModemResponse("Startup SMS send failed", sendResponse);
+    return false;
+  }
+
   Serial.println("Startup SMS sent");
+  return true;
 }
 
 // ----------------------
@@ -819,11 +1161,12 @@ String buildIdentityJson() {
   return json;
 }
 
-String buildAckJson(unsigned long intervalMs) {
+String buildAckJson(unsigned long ignitionOnIntervalMs, unsigned long ignitionOffIntervalMs) {
   String json = "{";
   json += "\"type\":\"ack\",";
   json += "\"status\":\"success\",";
-  json += "\"interval\":" + String(intervalMs);
+  json += "\"ignitionOnInterval\":" + String(ignitionOnIntervalMs) + ",";
+  json += "\"ignitionOffInterval\":" + String(ignitionOffIntervalMs);
   json += "}";
   return json;
 }
@@ -845,22 +1188,60 @@ void handleCommand(const String& payload) {
     return;
   }
 
-  unsigned long requestedIntervalMs = 0;
-  if (!extractJsonUnsignedLongValue(payload, "interval", requestedIntervalMs)) {
-    Serial.println("Ignoring config_update: missing or invalid interval");
+  unsigned long requestedIgnitionOnIntervalMs = 0;
+  unsigned long requestedIgnitionOffIntervalMs = 0;
+  bool hasIgnitionOnInterval = extractJsonUnsignedLongValue(
+    payload,
+    "ignitionOnInterval",
+    requestedIgnitionOnIntervalMs
+  );
+  bool hasIgnitionOffInterval = extractJsonUnsignedLongValue(
+    payload,
+    "ignitionOffInterval",
+    requestedIgnitionOffIntervalMs
+  );
+
+  if (!hasIgnitionOnInterval || !hasIgnitionOffInterval) {
+    unsigned long legacyIntervalMs = 0;
+    if (!extractJsonUnsignedLongValue(payload, "interval", legacyIntervalMs)) {
+      Serial.println("Ignoring config_update: missing or invalid ignition intervals");
+      return;
+    }
+
+    requestedIgnitionOnIntervalMs = legacyIntervalMs;
+    requestedIgnitionOffIntervalMs = legacyIntervalMs;
+  }
+
+  if (!isValidTelemetryInterval(requestedIgnitionOnIntervalMs) ||
+      !isValidTelemetryInterval(requestedIgnitionOffIntervalMs)) {
+    Serial.println(
+      "Ignoring config_update: interval out of range (on=" +
+      String(requestedIgnitionOnIntervalMs) +
+      " ms, off=" +
+      String(requestedIgnitionOffIntervalMs) +
+      " ms)"
+    );
     return;
   }
 
-  if (requestedIntervalMs < 1000 || requestedIntervalMs > 60000) {
-    Serial.println("Ignoring config_update: interval out of range (" + String(requestedIntervalMs) + " ms)");
+  ignitionOnPollIntervalMs = requestedIgnitionOnIntervalMs;
+  ignitionOffPollIntervalMs = requestedIgnitionOffIntervalMs;
+
+  if (!saveIntervalsToNvs(ignitionOnPollIntervalMs, ignitionOffPollIntervalMs)) {
+    Serial.println("Ignoring config_update because NVS persistence failed");
     return;
   }
 
-  gps_poll_interval_ms = requestedIntervalMs;
-  Serial.println("Telemetry interval updated to " + String(gps_poll_interval_ms) + " ms");
+  Serial.println(
+    "Telemetry intervals updated to ignition ON " +
+    String(ignitionOnPollIntervalMs) +
+    " ms, ignition OFF " +
+    String(ignitionOffPollIntervalMs) +
+    " ms"
+  );
 
   String ackTopic = buildAckTopic();
-  String ackPayload = buildAckJson(gps_poll_interval_ms);
+  String ackPayload = buildAckJson(ignitionOnPollIntervalMs, ignitionOffPollIntervalMs);
   Serial.println("Publishing ACK topic: " + ackTopic);
   Serial.println("Publishing ACK payload: " + ackPayload);
   if (!publishMessage(ackTopic, ackPayload)) {

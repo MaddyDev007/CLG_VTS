@@ -125,6 +125,20 @@ export class DevicesService {
   async updateTelemetryInterval(deviceUid: string, telemetryIntervalMs: number, actor: AuthenticatedUser): Promise<Device> {
     const device = await this.findByUidForWrite(deviceUid, actor)
     device.telemetryIntervalMs = telemetryIntervalMs
+    device.ignitionOnIntervalMs = telemetryIntervalMs
+    device.ignitionOffIntervalMs = telemetryIntervalMs
+    return this.deviceRepo.save(device)
+  }
+
+  async updateIgnitionIntervals(
+    deviceUid: string,
+    intervals: { ignitionOnIntervalMs: number; ignitionOffIntervalMs: number },
+    actor: AuthenticatedUser,
+  ): Promise<Device> {
+    const device = await this.findByUidForWrite(deviceUid, actor)
+    device.ignitionOnIntervalMs = intervals.ignitionOnIntervalMs
+    device.ignitionOffIntervalMs = intervals.ignitionOffIntervalMs
+    device.telemetryIntervalMs = intervals.ignitionOnIntervalMs
     return this.deviceRepo.save(device)
   }
 

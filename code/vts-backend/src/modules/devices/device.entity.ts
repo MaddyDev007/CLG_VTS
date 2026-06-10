@@ -32,6 +32,12 @@ export class Device {
   @Column({ type: 'integer', default: 5000 })
   telemetryIntervalMs!: number
 
+  @Column({ type: 'integer', default: 5000 })
+  ignitionOnIntervalMs!: number
+
+  @Column({ type: 'integer', default: 10000 })
+  ignitionOffIntervalMs!: number
+
   @Column({ type: 'uuid', nullable: true })
   assignedVehicleId!: string | null
 

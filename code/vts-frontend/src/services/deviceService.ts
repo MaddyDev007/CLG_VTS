@@ -21,7 +21,8 @@ export type DeviceServiceResponse = {
 export type UpdateDeviceIntervalResponse =
   | {
       status: 'success'
-      interval: number
+      ignitionOnInterval: number
+      ignitionOffInterval: number
       timestamp: string
     }
   | {
@@ -77,8 +78,11 @@ class DeviceService {
     return response
   }
 
-  async updateTelemetryInterval(imei: string, interval: number): Promise<UpdateDeviceIntervalResponse> {
-    const response = await apiClient.post<UpdateDeviceIntervalResponse>(`/devices/${imei}/interval`, { interval })
+  async updateTelemetryIntervals(
+    imei: string,
+    intervals: { ignitionOnInterval: number; ignitionOffInterval: number },
+  ): Promise<UpdateDeviceIntervalResponse> {
+    const response = await apiClient.post<UpdateDeviceIntervalResponse>(`/devices/${imei}/interval`, intervals)
     invalidateDataSync(['devices'])
     return response
   }

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { DevicesService } from './devices.service'
 import { CreateDeviceDto } from './dto/create-device.dto'
@@ -84,20 +84,47 @@ export class DevicesController {
   ) {
     const device = await this.devicesService.findByImei(imei, user)
     const sentAt = Date.now()
+    const intervals = this.resolveRequestedIntervals(payload)
 
-    await this.deviceCommandService.sendIntervalUpdate(device.imei, payload.interval)
+    await this.deviceCommandService.sendIntervalUpdate(device.imei, intervals)
 
-    const ack = await this.deviceAckService.waitForAck(device.imei, payload.interval, sentAt)
+    const ack = await this.deviceAckService.waitForAck(device.imei, intervals, sentAt)
     if (!ack) {
       return { status: 'timeout' as const }
     }
 
-    await this.devicesService.updateTelemetryInterval(device.deviceId, ack.interval, user)
+    await this.devicesService.updateIgnitionIntervals(
+      device.deviceId,
+      {
+        ignitionOnIntervalMs: ack.ignitionOnInterval,
+        ignitionOffIntervalMs: ack.ignitionOffInterval,
+      },
+      user,
+    )
 
     return {
       status: 'success' as const,
-      interval: ack.interval,
+      ignitionOnInterval: ack.ignitionOnInterval,
+      ignitionOffInterval: ack.ignitionOffInterval,
       timestamp: new Date(ack.timestamp).toISOString(),
+    }
+  }
+
+  private resolveRequestedIntervals(payload: UpdateDeviceIntervalDto) {
+    if (payload.interval !== undefined) {
+      return {
+        ignitionOnInterval: payload.interval,
+        ignitionOffInterval: payload.interval,
+      }
+    }
+
+    if (payload.ignitionOnInterval === undefined || payload.ignitionOffInterval === undefined) {
+      throw new BadRequestException('ignitionOnInterval and ignitionOffInterval are required')
+    }
+
+    return {
+      ignitionOnInterval: payload.ignitionOnInterval,
+      ignitionOffInterval: payload.ignitionOffInterval,
     }
   }
 

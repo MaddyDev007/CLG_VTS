@@ -5,7 +5,8 @@ import type { Device } from '../../types/device'
 type SortKey =
   | 'deviceId'
   | 'imei'
-  | 'telemetryIntervalMs'
+  | 'ignitionOnIntervalMs'
+  | 'ignitionOffIntervalMs'
   | 'status'
   | 'assignedVehicleName'
   | 'createdAt'
@@ -34,7 +35,8 @@ export function DeviceTable({ devices, pageSize = 8, onEdit, onDelete }: DeviceT
       return (
         device.deviceId.toLowerCase().includes(query) ||
         device.imei.toLowerCase().includes(query) ||
-        String(device.telemetryIntervalMs).includes(query) ||
+        String(device.ignitionOnIntervalMs ?? device.telemetryIntervalMs).includes(query) ||
+        String(device.ignitionOffIntervalMs ?? device.telemetryIntervalMs).includes(query) ||
         device.status.toLowerCase().includes(query) ||
         assignedVehicle.toLowerCase().includes(query)
       )
@@ -117,7 +119,7 @@ export function DeviceTable({ devices, pageSize = 8, onEdit, onDelete }: DeviceT
       </div>
 
       <div className='overflow-x-auto'>
-        <table className='w-full min-w-[1100px] border-collapse text-sm'>
+        <table className='w-full min-w-[1200px] border-collapse text-sm'>
           <thead>
             <tr className='border-b border-slate-200 text-left text-xs uppercase tracking-[0.1em] text-slate-500 dark:border-slate-700 dark:text-slate-400'>
               <th className='px-3 py-2 font-semibold'>
@@ -136,8 +138,13 @@ export function DeviceTable({ devices, pageSize = 8, onEdit, onDelete }: DeviceT
                 </button>
               </th>
               <th className='px-3 py-2 font-semibold'>
-                <button type='button' onClick={() => handleSort('telemetryIntervalMs')}>
-                  Telemetry Interval{sortIndicator('telemetryIntervalMs')}
+                <button type='button' onClick={() => handleSort('ignitionOnIntervalMs')}>
+                  Ignition ON{sortIndicator('ignitionOnIntervalMs')}
+                </button>
+              </th>
+              <th className='px-3 py-2 font-semibold'>
+                <button type='button' onClick={() => handleSort('ignitionOffIntervalMs')}>
+                  Ignition OFF{sortIndicator('ignitionOffIntervalMs')}
                 </button>
               </th>
               <th className='px-3 py-2 font-semibold'>
@@ -179,7 +186,10 @@ export function DeviceTable({ devices, pageSize = 8, onEdit, onDelete }: DeviceT
                     </span>
                   </td>
                   <td className='px-3 py-3 text-slate-700 dark:text-slate-200'>
-                    {device.telemetryIntervalMs.toLocaleString()} ms
+                    {(device.ignitionOnIntervalMs ?? device.telemetryIntervalMs).toLocaleString()} ms
+                  </td>
+                  <td className='px-3 py-3 text-slate-700 dark:text-slate-200'>
+                    {(device.ignitionOffIntervalMs ?? device.telemetryIntervalMs).toLocaleString()} ms
                   </td>
                   <td className='max-w-xs truncate px-3 py-3 text-slate-700 dark:text-slate-200' title={device.assignedVehicleName ?? 'Unassigned'}>
                     {device.assignedVehicleName ?? 'Unassigned'}
@@ -214,7 +224,7 @@ export function DeviceTable({ devices, pageSize = 8, onEdit, onDelete }: DeviceT
               ))
             ) : (
               <tr>
-                <td colSpan={8} className='px-3 py-6 text-center text-sm text-slate-600 dark:text-slate-300'>
+                <td colSpan={9} className='px-3 py-6 text-center text-sm text-slate-600 dark:text-slate-300'>
                   No devices match the current search.
                 </td>
               </tr>
