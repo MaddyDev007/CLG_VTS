@@ -122,6 +122,7 @@ export class VehiclesService {
     const vehicle = await this.findByIdForWrite(id, actor)
     const previousDeviceId = vehicle.deviceId
     const previousRouteId = vehicle.routeId
+    const previousVehicleName = vehicle.vehicleName
 
     if (payload.deviceId !== undefined) {
       const trimmed = payload.deviceId?.trim()
@@ -156,13 +157,18 @@ export class VehiclesService {
     const updatedVehicle = await this.vehicleRepo.save(vehicle)
 
     if (payload.deviceId !== undefined) {
-      if (previousDeviceId && previousDeviceId !== updatedVehicle.deviceId) {
-        await this.devicesService.unassign(previousDeviceId, actor)
+      if (!updatedVehicle.deviceId || previousDeviceId !== updatedVehicle.deviceId) {
+        await this.devicesService.unassignByVehicleId(updatedVehicle.id, actor, updatedVehicle.deviceId)
       }
 
       if (updatedVehicle.deviceId) {
         await this.devicesService.assign(updatedVehicle.deviceId, updatedVehicle.id, updatedVehicle.vehicleName, actor)
       }
+    }
+
+    if (payload.vehicleName !== undefined && previousVehicleName !== updatedVehicle.vehicleName) {
+      await this.devicesService.syncAssignedVehicleName(updatedVehicle.id, updatedVehicle.vehicleName, actor)
+      await this.telemetryRepo.update({ vehicleId: updatedVehicle.id }, { vehicleName: updatedVehicle.vehicleName })
     }
 
     if (payload.routeId !== undefined && previousRouteId !== updatedVehicle.routeId) {
@@ -192,9 +198,7 @@ export class VehiclesService {
 
   async remove(id: string, actor: AuthenticatedUser): Promise<void> {
     const vehicle = await this.findByIdForWrite(id, actor)
-    if (vehicle.deviceId) {
-      await this.devicesService.unassign(vehicle.deviceId, actor)
-    }
+    await this.devicesService.unassignByVehicleId(vehicle.id, actor)
     await this.vehicleRepo.remove(vehicle)
   }
 

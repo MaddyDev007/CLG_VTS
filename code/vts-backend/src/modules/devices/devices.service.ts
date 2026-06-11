@@ -5,6 +5,7 @@ import { Device } from './device.entity'
 import { CreateDeviceDto } from './dto/create-device.dto'
 import { UpdateDeviceDto } from './dto/update-device.dto'
 import { Vehicle } from '../vehicles/vehicle.entity'
+import { TelemetryRecord } from '../telemetry/telemetry.entity'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
 import {
   assertTenantAccess,
@@ -118,8 +119,39 @@ export class DevicesService {
 
   async update(id: string, payload: UpdateDeviceDto, actor: AuthenticatedUser): Promise<Device> {
     const device = await this.findByIdForWrite(id, actor)
-    Object.assign(device, payload)
-    return this.deviceRepo.save(device)
+    const previousDeviceId = device.deviceId
+    const nextDeviceId = payload.deviceId?.trim()
+    const nextImei = payload.imei?.trim()
+
+    if (nextDeviceId && nextDeviceId !== device.deviceId) {
+      const existingDevice = await this.deviceRepo.findOne({ where: { deviceId: nextDeviceId } })
+      if (existingDevice && existingDevice.id !== device.id) {
+        throw new ConflictException(`Device ${nextDeviceId} already exists`)
+      }
+      device.deviceId = nextDeviceId
+    }
+
+    if (nextImei && nextImei !== device.imei) {
+      const existingImei = await this.deviceRepo.findOne({ where: { imei: nextImei } })
+      if (existingImei && existingImei.id !== device.id) {
+        throw new ConflictException(`IMEI ${nextImei} already registered`)
+      }
+      device.imei = nextImei
+    }
+
+    return this.deviceRepo.manager.transaction(async (manager) => {
+      const saved = await manager.save(Device, device)
+
+      if (previousDeviceId !== saved.deviceId) {
+        if (saved.assignedVehicleId) {
+          await manager.update(Vehicle, { id: saved.assignedVehicleId }, { deviceId: saved.deviceId })
+        }
+
+        await manager.update(TelemetryRecord, { deviceId: previousDeviceId }, { deviceId: saved.deviceId })
+      }
+
+      return saved
+    })
   }
 
   async updateTelemetryInterval(deviceUid: string, telemetryIntervalMs: number, actor: AuthenticatedUser): Promise<Device> {
@@ -166,16 +198,38 @@ export class DevicesService {
       throw new NotFoundException('Vehicle not found')
     }
 
-    device.assignedVehicleId = vehicleId
-    device.assignedVehicleName = vehicleName
-    device.status = 'assigned'
-    device.collegeId = vehicle.collegeId
-    const saved = await this.deviceRepo.save(device)
+    return this.deviceRepo.manager.transaction(async (manager) => {
+      if (device.assignedVehicleId && device.assignedVehicleId !== vehicleId) {
+        const previousVehicle = await manager.findOne(Vehicle, { where: { id: device.assignedVehicleId } })
+        if (previousVehicle && previousVehicle.deviceId === device.deviceId) {
+          previousVehicle.deviceId = null
+          await manager.save(Vehicle, previousVehicle)
+        }
+      }
 
-    vehicle.deviceId = device.deviceId
-    await this.vehicleRepo.save(vehicle)
+      const assignedDevices = await manager.find(Device, { where: { assignedVehicleId: vehicleId } })
+      for (const assignedDevice of assignedDevices) {
+        if (assignedDevice.id === device.id) {
+          continue
+        }
 
-    return saved
+        assignedDevice.assignedVehicleId = null
+        assignedDevice.assignedVehicleName = null
+        assignedDevice.status = 'unassigned'
+        await manager.save(Device, assignedDevice)
+      }
+
+      device.assignedVehicleId = vehicleId
+      device.assignedVehicleName = vehicleName
+      device.status = 'assigned'
+      device.collegeId = vehicle.collegeId
+      const saved = await manager.save(Device, device)
+
+      vehicle.deviceId = saved.deviceId
+      await manager.save(Vehicle, vehicle)
+
+      return saved
+    })
   }
 
   async unassign(deviceUid: string, actor?: AuthenticatedUser): Promise<Device> {
@@ -197,5 +251,46 @@ export class DevicesService {
     }
 
     return saved
+  }
+
+  async unassignByVehicleId(
+    vehicleId: string,
+    actor?: AuthenticatedUser,
+    exceptDeviceUid?: string | null,
+  ): Promise<Device[]> {
+    const devices = await this.deviceRepo.find({
+      where: actor
+        ? mergeCollegeWhere<Device>(actor, { assignedVehicleId: vehicleId })
+        : { assignedVehicleId: vehicleId },
+    })
+    const updated: Device[] = []
+
+    for (const device of devices) {
+      if (exceptDeviceUid && device.deviceId === exceptDeviceUid) {
+        continue
+      }
+
+      device.assignedVehicleId = null
+      device.assignedVehicleName = null
+      device.status = 'unassigned'
+      updated.push(await this.deviceRepo.save(device))
+    }
+
+    return updated
+  }
+
+  async syncAssignedVehicleName(vehicleId: string, vehicleName: string, actor?: AuthenticatedUser): Promise<void> {
+    const devices = await this.deviceRepo.find({
+      where: actor
+        ? mergeCollegeWhere<Device>(actor, { assignedVehicleId: vehicleId })
+        : { assignedVehicleId: vehicleId },
+    })
+
+    for (const device of devices) {
+      if (device.assignedVehicleName !== vehicleName) {
+        device.assignedVehicleName = vehicleName
+        await this.deviceRepo.save(device)
+      }
+    }
   }
 }
