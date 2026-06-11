@@ -49,6 +49,14 @@ export class CollegesController {
     return { success: true, ...result }
   }
 
+  @ApiOperation({ summary: 'Reset college admin password' })
+  @ApiResponse({ status: 200 })
+  @Post(':collegeId/reset-admin-password')
+  async resetAdminPassword(@Param('collegeId') collegeId: string, @CurrentUser() user: AuthenticatedUser) {
+    const result = await this.collegesService.resetAdminPassword(collegeId, user)
+    return { success: true, ...result }
+  }
+
   @ApiOperation({ summary: 'Request college deletion' })
   @ApiResponse({ status: 200 })
   @Patch(':collegeId/request-delete')

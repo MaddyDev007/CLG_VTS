@@ -26,6 +26,9 @@ export class User {
   @Column({ type: 'varchar', length: 255 })
   passwordHash!: string
 
+  @Column({ type: 'boolean', default: false })
+  mustChangePassword!: boolean
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date
 }

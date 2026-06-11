@@ -5,6 +5,7 @@ export interface UserProfile {
   role: string
   collegeId?: string | null
   collegeName?: string | null
+  mustChangePassword?: boolean
   timezone: string
 }
 

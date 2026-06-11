@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FiArrowLeft, FiSave } from 'react-icons/fi'
+import { FiArrowLeft, FiKey, FiSave, FiTrash2 } from 'react-icons/fi'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { collegeService, type CollegeDetails } from '@services/collegeService'
 import { GLOBAL_SCOPE_KEY, useScopedDataSyncVersion } from '@store/dataSyncStore'
@@ -31,6 +31,8 @@ export function CollegeDetailsPage() {
   const [adminEmail, setAdminEmail] = useState('')
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
+  const [isRequestingDelete, setIsRequestingDelete] = useState(false)
   const isDeletePending = college?.status === 'delete_pending'
   const syncVersion = useScopedDataSyncVersion(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
 
@@ -103,6 +105,63 @@ export function CollegeDetailsPage() {
     }
   }
 
+  const handleResetAdminPassword = async () => {
+    if (!id || !college?.admin) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Generate a new temporary password for ${college.admin.email}? The old password will stop working immediately.`,
+    )
+    if (!confirmed) {
+      return
+    }
+
+    setIsResettingPassword(true)
+    setError('')
+    setSuccessMessage('')
+    try {
+      const response = await collegeService.resetCollegeAdminPassword(id)
+      setCollege(response.college)
+      setAdminName(response.college.admin?.name ?? '')
+      setAdminEmail(response.college.admin?.email ?? '')
+      setSuccessMessage(
+        `New temporary password for ${response.college.admin?.email ?? 'the college admin'}: ${response.adminTemporaryPassword}`,
+      )
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : 'Failed to reset the college admin password.')
+    } finally {
+      setIsResettingPassword(false)
+    }
+  }
+
+  const handleRequestDelete = async () => {
+    if (!id || !college) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Request deletion for ${college.name}? The assigned college admin will need to approve or reject it.`,
+    )
+    if (!confirmed) {
+      return
+    }
+
+    setIsRequestingDelete(true)
+    setError('')
+    setSuccessMessage('')
+    try {
+      const response = await collegeService.requestDeleteCollege(id)
+      setCollege(response.college)
+      setStatus(response.college.status === 'active' ? 'active' : 'inactive')
+      setSuccessMessage('Delete request sent. The college admin can now approve or reject it.')
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Failed to request college deletion.')
+    } finally {
+      setIsRequestingDelete(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className='mx-auto w-full max-w-7xl rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300'>
@@ -140,17 +199,43 @@ export function CollegeDetailsPage() {
             </p>
           </div>
 
-          {isEditMode ? (
-            <button
-              type='button'
-              onClick={() => void handleSave()}
-              disabled={isSaving || isDeletePending}
-              className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
-            >
-              <FiSave size={16} />
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
-          ) : null}
+          <div className='flex flex-wrap gap-2'>
+            {!isEditMode && college.admin?.mustChangePassword ? (
+              <button
+                type='button'
+                onClick={() => void handleResetAdminPassword()}
+                disabled={isResettingPassword}
+                className='inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/60'
+              >
+                <FiKey size={16} />
+                {isResettingPassword ? 'Resetting...' : 'Reset Temp Password'}
+              </button>
+            ) : null}
+
+            {!isEditMode ? (
+              <button
+                type='button'
+                onClick={() => void handleRequestDelete()}
+                disabled={isRequestingDelete || isDeletePending}
+                className='inline-flex items-center gap-2 rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60'
+              >
+                <FiTrash2 size={16} />
+                {isDeletePending ? 'Delete Requested' : isRequestingDelete ? 'Requesting...' : 'Request Delete'}
+              </button>
+            ) : null}
+
+            {isEditMode ? (
+              <button
+                type='button'
+                onClick={() => void handleSave()}
+                disabled={isSaving || isDeletePending}
+                className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
+              >
+                <FiSave size={16} />
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            ) : null}
+          </div>
         </div>
       </section>
 
@@ -204,7 +289,7 @@ export function CollegeDetailsPage() {
             ) : (
               <>
                 <DetailField label='College Name' value={name} />
-                <DetailField label='Status' value={status} />
+                <DetailField label='Status' value={college.status} />
               </>
             )}
           </div>
@@ -240,6 +325,10 @@ export function CollegeDetailsPage() {
               <>
                 <DetailField label='Admin Name' value={adminName} />
                 <DetailField label='Admin Email' value={adminEmail} />
+                <DetailField
+                  label='Password Status'
+                  value={college.admin?.mustChangePassword ? 'Temporary password still active' : 'Password already changed by admin'}
+                />
               </>
             )}
           </div>

@@ -72,7 +72,7 @@ export function CollegesPage() {
 
       setCreateSuccess(
         response.adminTemporaryPassword
-          ? `College created. College admin login: ${normalizedAdminEmail}. Temporary password: ${response.adminTemporaryPassword}`
+          ? `College created. College admin login: ${normalizedAdminEmail}. Temporary password: ${response.adminTemporaryPassword}. If it is lost, open View Details and generate a new temporary password.`
           : 'College created successfully.',
       )
       resetCreateForm()
@@ -91,7 +91,7 @@ export function CollegesPage() {
     }
 
     const confirmed = window.confirm(
-      `Request deletion for ${college.name}? The assigned college admin will need to approve or reject it.`,
+      `Request deletion for ${college.name}? The assigned college admin will need to approve or reject it. Super admins can still delete an empty college directly from View Details if needed.`,
     )
     if (!confirmed) {
       return
@@ -266,6 +266,11 @@ export function CollegesPage() {
                       <div className='text-xs text-slate-500 dark:text-slate-400'>
                         {college.admin?.email ?? 'Open details to create the required admin'}
                       </div>
+                      {college.admin?.mustChangePassword ? (
+                        <div className='mt-1 text-xs font-medium text-amber-600 dark:text-amber-300'>
+                          Temporary password still active
+                        </div>
+                      ) : null}
                     </td>
                     <td className='px-4 py-4'>
                       {renderStatusBadge(college.status)}
@@ -302,7 +307,7 @@ export function CollegesPage() {
                               ? 'Unavailable'
                             : requestingDeleteId === college.id
                               ? 'Requesting...'
-                              : 'Delete'}
+                              : 'Request Delete'}
                         </button>
                       </div>
                     </td>

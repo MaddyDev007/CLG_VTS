@@ -34,6 +34,7 @@ export class ProfileService {
       role: user.role,
       collegeId: user.collegeId ?? null,
       collegeName: college?.name ?? null,
+      mustChangePassword: user.mustChangePassword,
     }
   }
 
@@ -99,6 +100,7 @@ export class ProfileService {
     }
 
     user.passwordHash = await hashPassword(payload.newPassword)
+    user.mustChangePassword = false
     await this.usersRepo.save(user)
   }
 }

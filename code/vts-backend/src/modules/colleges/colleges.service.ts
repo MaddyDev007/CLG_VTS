@@ -17,6 +17,7 @@ type CollegeAdminSummary = {
   name: string
   email: string
   status: User['status']
+  mustChangePassword: boolean
 }
 
 type CollegeSummary = {
@@ -34,6 +35,11 @@ type CollegeDetails = CollegeSummary & {
 type CollegeMutationResult = {
   college: CollegeDetails
   adminTemporaryPassword?: string
+}
+
+type CollegeAdminPasswordResetResult = {
+  college: CollegeDetails
+  adminTemporaryPassword: string
 }
 
 @Injectable()
@@ -72,6 +78,7 @@ export class CollegesService {
         name: admin.name,
         email: admin.email,
         status: admin.status,
+        mustChangePassword: admin.mustChangePassword,
       })
       adminMap.set(admin.collegeId, current)
     })
@@ -137,6 +144,7 @@ export class CollegesService {
         collegeId: savedCollege.id,
         passwordHash: await hashPassword(adminTemporaryPassword),
         status: 'active',
+        mustChangePassword: true,
       })
 
       await userRepo.save(adminUser)
@@ -277,6 +285,7 @@ export class CollegesService {
         collegeId: college.id,
         passwordHash: await hashPassword(adminTemporaryPassword),
         status: 'active',
+        mustChangePassword: true,
       })
 
       await userRepo.save(createdAdmin)
@@ -305,6 +314,42 @@ export class CollegesService {
 
     college.status = payload.status
     return this.collegesRepo.save(college)
+  }
+
+  async resetAdminPassword(id: string, actor: AuthenticatedUser): Promise<CollegeAdminPasswordResetResult> {
+    if (!isSuperAdmin(actor)) {
+      throw new ForbiddenException('Only super admins can reset the college admin password')
+    }
+
+    const college = await this.collegesRepo.findOne({ where: { id } })
+    if (!college) {
+      throw new NotFoundException('College not found')
+    }
+
+    const admins = await this.usersRepo.find({
+      where: {
+        collegeId: id,
+        role: 'COLLEGE_ADMIN',
+      },
+      order: {
+        createdAt: 'ASC',
+      },
+    })
+
+    const adminUser = admins[0] ?? null
+    if (!adminUser) {
+      throw new ConflictException('This college does not have a college admin to reset.')
+    }
+
+    const adminTemporaryPassword = this.generateTemporaryAdminPassword()
+    adminUser.passwordHash = await hashPassword(adminTemporaryPassword)
+    adminUser.mustChangePassword = true
+    await this.usersRepo.save(adminUser)
+
+    return {
+      college: await this.findDetailedById(id, actor),
+      adminTemporaryPassword,
+    }
   }
 
   async requestDelete(id: string, actor: AuthenticatedUser): Promise<CollegeDetails> {
@@ -354,11 +399,14 @@ export class CollegesService {
   }
 
   async remove(id: string, actor: AuthenticatedUser): Promise<void> {
-    if (actor.role !== 'COLLEGE_ADMIN') {
-      throw new ForbiddenException('Only the college admin can approve college deletion')
+    const isCollegeAdminActor = actor.role === 'COLLEGE_ADMIN'
+    const isSuperAdminActor = isSuperAdmin(actor)
+
+    if (!isCollegeAdminActor && !isSuperAdminActor) {
+      throw new ForbiddenException('Only the college admin or a super admin can delete this college')
     }
 
-    if (requireCollegeScope(actor) !== id) {
+    if (isCollegeAdminActor && requireCollegeScope(actor) !== id) {
       throw new NotFoundException('College not found')
     }
 
@@ -368,28 +416,30 @@ export class CollegesService {
         throw new NotFoundException('College not found')
       }
 
-      if (college.status !== 'delete_pending') {
+      if (isCollegeAdminActor && college.status !== 'delete_pending') {
         throw new ConflictException('This college does not have a pending delete request')
       }
 
-      const nonAdminUserCount = await manager
-        .createQueryBuilder()
-        .from('users', 'u')
-        .where('u."collegeId" = :collegeId', { collegeId: id })
-        .andWhere('u.role <> :adminRole', { adminRole: 'COLLEGE_ADMIN' })
-        .getCount()
+      const nonAdminUsers = await manager.find(User, {
+        where: {
+          collegeId: id,
+        },
+        select: {
+          id: true,
+          role: true,
+        },
+      })
+
+      const nonAdminUserCount = nonAdminUsers.filter((user) => user.role !== 'COLLEGE_ADMIN').length
 
       if (nonAdminUserCount > 0 || (await collegeHasRelatedData(manager, id))) {
         throw new ConflictException('Cannot delete college with existing users or operational data.')
       }
 
-      await manager
-        .createQueryBuilder()
-        .delete()
-        .from(User)
-        .where('"collegeId" = :collegeId', { collegeId: id })
-        .andWhere('role = :adminRole', { adminRole: 'COLLEGE_ADMIN' })
-        .execute()
+      await manager.delete(User, {
+        collegeId: id,
+        role: 'COLLEGE_ADMIN',
+      })
 
       await manager.delete(College, { id })
     })

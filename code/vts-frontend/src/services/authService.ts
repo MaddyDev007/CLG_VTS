@@ -10,6 +10,7 @@ export type AuthUser = {
   name: string
   role: UserRole
   status?: UserStatus
+  mustChangePassword?: boolean
 }
 
 export type AuthSession = {
@@ -18,6 +19,7 @@ export type AuthSession = {
   role: UserRole
   name: string
   email: string
+  mustChangePassword?: boolean
 }
 
 export type LoginInput = {
@@ -59,6 +61,7 @@ function readSession(): AuthSession | null {
         role: parsed.role as UserRole,
         name: parsed.name,
         email: parsed.email,
+        mustChangePassword: parsed.mustChangePassword === true,
       }
     }
 
@@ -78,6 +81,7 @@ class AuthService implements IAuthService {
       role: (session.role ?? 'STUDENT') as UserRole,
       name: session.name ?? email,
       email: session.email ?? email,
+      mustChangePassword: session.mustChangePassword === true,
     }
 
     saveSession(normalizedSession)

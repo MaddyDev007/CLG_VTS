@@ -6,6 +6,7 @@ export type CollegeAdminSummary = {
   name: string
   email: string
   status: 'active' | 'disabled'
+  mustChangePassword: boolean
 }
 
 export type CollegeStatus = 'active' | 'inactive' | 'delete_pending'
@@ -50,6 +51,12 @@ export type CollegeStatusMutationResponse = {
   college: CollegeDetails
 }
 
+export type CollegeAdminPasswordResetResponse = {
+  success: true
+  college: CollegeDetails
+  adminTemporaryPassword: string
+}
+
 class CollegeService {
   async getColleges(options?: { includeAll?: boolean }): Promise<CollegeSummary[]> {
     const path = options?.includeAll ? '/colleges?includeAll=true' : '/colleges'
@@ -76,6 +83,12 @@ class CollegeService {
 
   async updateCollege(collegeId: string, payload: UpdateCollegeInput): Promise<CollegeMutationResponse> {
     const response = await apiClient.patch<CollegeMutationResponse>(`/colleges/${collegeId}`, payload)
+    invalidateDataSync(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
+    return response
+  }
+
+  async resetCollegeAdminPassword(collegeId: string): Promise<CollegeAdminPasswordResetResponse> {
+    const response = await apiClient.post<CollegeAdminPasswordResetResponse>(`/colleges/${collegeId}/reset-admin-password`)
     invalidateDataSync(['colleges'], { scopeKey: GLOBAL_SCOPE_KEY })
     return response
   }

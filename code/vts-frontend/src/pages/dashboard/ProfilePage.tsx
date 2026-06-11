@@ -52,6 +52,12 @@ export function ProfilePage() {
         <p className='text-sm text-slate-600 dark:text-slate-300'>Manage your account settings and security</p>
       </section>
 
+      {profile.mustChangePassword ? (
+        <section className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200'>
+          Your account is still using a temporary password. Change it now to finish securing this login.
+        </section>
+      ) : null}
+
       <ProfileInfoCard profile={profile} />
 
       <PreferencesCard timezone={timezone} preferences={preferences} onSave={handleSavePreferences} />

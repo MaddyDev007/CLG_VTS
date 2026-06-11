@@ -10,6 +10,7 @@
 | collegeId | uuid? | optional college id |
 | status | varchar | active / disabled |
 | passwordHash | varchar | bcrypt hash |
+| mustChangePassword | boolean | true while a temporary password is still active |
 | createdAt | timestamptz | created timestamp |
 
 ## vehicles

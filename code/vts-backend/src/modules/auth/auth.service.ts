@@ -39,6 +39,7 @@ export class AuthService {
       name: user.name,
       email: user.email,
       collegeId: user.collegeId ?? null,
+      mustChangePassword: user.mustChangePassword,
     }
   }
 }

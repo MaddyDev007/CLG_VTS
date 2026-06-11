@@ -17,7 +17,13 @@ Auth:
 ```
 - Response:
 ```json
-{ "token": "<jwt>", "role": "SUPER_ADMIN", "name": "Super Admin" }
+{
+  "token": "<jwt>",
+  "role": "SUPER_ADMIN",
+  "name": "Super Admin",
+  "email": "admin@vts.local",
+  "mustChangePassword": false
+}
 ```
 
 ### POST /auth/logout
@@ -26,6 +32,56 @@ Auth:
 ```json
 { "success": true }
 ```
+
+---
+
+## Colleges
+
+### GET /colleges
+- Response: list of colleges with current admin summary
+- Each admin summary includes `mustChangePassword` so the UI can show whether the admin is still on a temporary password.
+
+### GET /colleges/:collegeId
+- Response: one college with admin summary
+
+### POST /colleges
+- Creates the college and its college admin.
+- Response includes `adminTemporaryPassword` once at creation time.
+- Passwords are not stored in retrievable plaintext. If the temporary password is lost, generate a new one with the reset endpoint below.
+
+### PATCH /colleges/:collegeId
+- Updates college and admin metadata.
+- If the college admin is missing, this endpoint recreates that admin and returns a new `adminTemporaryPassword`.
+
+### POST /colleges/:collegeId/reset-admin-password
+- Super admin only.
+- Generates a new temporary password for the assigned college admin.
+- Response:
+```json
+{
+  "success": true,
+  "college": {
+    "id": "<uuid>",
+    "name": "Einstein College Engineering",
+    "status": "active",
+    "admin": {
+      "id": "<uuid>",
+      "name": "Einstein",
+      "email": "admin@g.com",
+      "status": "active",
+      "mustChangePassword": true
+    }
+  },
+  "adminTemporaryPassword": "VTS-abc1234567"
+}
+```
+
+### PATCH /colleges/:collegeId/request-delete
+- Marks the college as `delete_pending` so the college admin can approve or cancel it.
+
+### DELETE /colleges/:collegeId
+- College admins can delete after a pending delete request.
+- Super admins can also delete directly when the college has no remaining non-admin users or operational data.
 
 ---
 
@@ -367,7 +423,7 @@ GET /telemetry?vehicleId=<uuid>&ignition=true
 ## Profile
 
 ### GET /profile
-- Response: current authenticated profile
+- Response: current authenticated profile, including `mustChangePassword`
 
 ### GET /profile/preferences
 - Response:
@@ -411,6 +467,7 @@ GET /telemetry?vehicleId=<uuid>&ignition=true
 - Response: updated profile
 
 ### POST /profile/change-password
+- Clears `mustChangePassword` for accounts that were still on a temporary password.
 - Response:
 ```json
 { "success": true }
